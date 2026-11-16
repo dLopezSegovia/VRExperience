@@ -6,8 +6,8 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class RespawnIfOutOfBounds : MonoBehaviour
 {
-    [SerializeField] private float minY = -5f;
-    [SerializeField] private float maxDistanceFromStart = 60f;
+    [SerializeField] private float minY = -1f;
+    [SerializeField] private float maxDistanceFromStart = 10f;
 
     private Rigidbody _rb;
     private Vector3 _startPosition;

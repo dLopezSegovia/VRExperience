@@ -1,11 +1,14 @@
+using Oculus.Interaction;
 using UnityEngine;
 
 /// <summary>
-/// Linterna agarrable. Conecta el evento Activated del XR Grab Interactable
-/// (Interactable Events > Activate > Activated) a Flashlight.Toggle().
+/// Linterna para Meta Interaction SDK. Mientras está agarrada, el gatillo (índice)
+/// de cualquiera de los dos mandos la enciende o apaga.
+/// Sustituye a la versión anterior de Flashlight.cs.
 /// </summary>
 public class Flashlight : MonoBehaviour
 {
+    [SerializeField] private Grabbable grabbable;        // el Grabbable de este objeto
     [SerializeField] private Light beam;                 // el Spot Light hijo
     [SerializeField] private Renderer lensRenderer;      // opcional
     [SerializeField] private Material lensOnMaterial;    // opcional
@@ -15,7 +18,20 @@ public class Flashlight : MonoBehaviour
 
     public bool IsOn => beam != null && beam.enabled;
 
+    private void Reset() => grabbable = GetComponent<Grabbable>();
+
     private void Start() => Apply(startOn);
+
+    private void Update()
+    {
+        if (grabbable == null || grabbable.SelectingPointsCount == 0) return;
+
+        if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger) ||
+            OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger))
+        {
+            Toggle();
+        }
+    }
 
     public void Toggle()
     {
