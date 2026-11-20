@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -24,7 +24,7 @@ namespace SameShore
         public string FinishLabel { get; set; } = "End the night and become a hatchling";
         public event Action FinishRequested;
 
-        Vector3 _lastStepPos;
+        Vector3 _lastStepPos, _lastPrintPos;
         float _stepAccum;
         bool _leftFoot;
         float _hold;
@@ -56,6 +56,20 @@ namespace SameShore
                         if (t.Name.Contains(k)) { _isdk.Add(b); b.enabled = false; break; }
                 }
                 Debug.Log($"[SameShore] Disabled {_isdk.Count} Meta ISDK locomotion components (smooth stick walking is used instead).");
+
+                // the body capsule must not collide with the rig's own colliders (ISDK locomotor, hands...)
+                var body = root.GetComponent<CharacterController>();
+                if (body != null)
+                {
+                    int n = 0;
+                    foreach (var c in root.GetComponentsInChildren<Collider>(true))
+                    {
+                        if (c == body) continue;
+                        Physics.IgnoreCollision(body, c, true);
+                        n++;
+                    }
+                    Debug.Log($"[SameShore] Player capsule ignores {n} rig colliders.");
+                }
             }
             SetActive(false);
         }
@@ -65,14 +79,14 @@ namespace SameShore
             Active = on;
             if (locomotion != null) locomotion.MovementEnabled = on;
             _hold = 0;
-            if (PlayerRig.Head != null) _lastStepPos = PlayerRig.Head.position;
+            if (PlayerRig.Head != null) _lastStepPos = _lastPrintPos = PlayerRig.Head.position;
             if (_holdPanel != null) _holdPanel.Hide();
         }
 
         public void PlaceAt(Transform spot)
         {
             if (locomotion != null) locomotion.PlaceAt(spot.position, spot.eulerAngles.y);
-            if (PlayerRig.Head != null) _lastStepPos = PlayerRig.Head.position;
+            if (PlayerRig.Head != null) _lastStepPos = _lastPrintPos = PlayerRig.Head.position;
         }
 
         void Update()
@@ -91,12 +105,15 @@ namespace SameShore
             _lastStepPos = p;
             if (_stepAccum < stepLength) return;
             _stepAccum = 0;
+            Vector3 stride = p - _lastPrintPos;
+            stride.y = 0;
+            _lastPrintPos = p;
             _leftFoot = !_leftFoot;
             _stepSource.pitch = UnityEngine.Random.Range(0.85f, 1.15f);
             _stepSource.PlayOneShot(SameShoreAssets.Pick(SameShoreAssets.I.footsteps), UnityEngine.Random.Range(0.6f, 0.9f));
-            if (footprints != null && d.sqrMagnitude > 1e-6f)
+            if (footprints != null && stride.sqrMagnitude > 0.01f)
             {
-                Vector3 fwd = d.normalized;
+                Vector3 fwd = stride.normalized;
                 Vector3 side = Vector3.Cross(Vector3.up, fwd) * (_leftFoot ? -0.11f : 0.11f);
                 footprints.Add(p + side, fwd, _leftFoot);
             }

@@ -1092,6 +1092,7 @@ namespace SameShore.EditorTools
             cc.stepOffset = 0.3f;
             cc.slopeLimit = 50f;
             cc.skinWidth = 0.03f;
+            cc.minMoveDistance = 0f; // never drop small per-frame moves (high frame rates)
             var loco = GetOrAdd<SmoothLocomotion>(rigRoot.gameObject);
             Set(loco, "head", rig.centerEyeAnchor);
             Vector3 start = L(1f, 2.6f);

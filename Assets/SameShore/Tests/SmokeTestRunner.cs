@@ -24,6 +24,11 @@ namespace SameShore.Tests
             Check("GameManager starts in Intro (menu)", gm != null && gm.Current == GameState.Intro);
             Check("Start menu is visible", GameObject.Find("StartMenu") != null && GameObject.Find("StartMenu").activeSelf);
 
+            string modeFile = System.IO.Path.Combine(Application.dataPath, "../Logs/SameShoreSmokeMode.txt");
+            string mode = System.IO.File.Exists(modeFile) ? System.IO.File.ReadAllText(modeFile).Trim() : "full";
+            if (mode == "turtle") { yield return TurtleOnly(director, gm); yield break; }
+            if (mode == "human") { yield return HumanOnly(director, gm); yield break; }
+
             // ---- Full experience
             director.GetType().GetMethod("Choose", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(director, new object[] { ExperienceMode.Full });
             yield return WaitFor(() => FindFirstObjectByType<SmoothLocomotion>().MovementEnabled, 40f);
@@ -151,6 +156,114 @@ namespace SameShore.Tests
 
             Finish();
         }
+
+        UnityEngine.InputSystem.Keyboard Keyboard()
+        {
+            var settings = Instantiate(UnityEngine.InputSystem.InputSystem.settings);
+            settings.backgroundBehavior = UnityEngine.InputSystem.InputSettings.BackgroundBehavior.IgnoreFocus;
+#if UNITY_EDITOR
+            settings.editorInputBehaviorInPlayMode = UnityEngine.InputSystem.InputSettings.EditorInputBehaviorInPlayMode.AllDeviceInputAlwaysGoesToGameView;
+#endif
+            UnityEngine.InputSystem.InputSystem.settings = settings;
+            var kb = UnityEngine.InputSystem.InputSystem.AddDevice<UnityEngine.InputSystem.Keyboard>();
+            kb.MakeCurrent();
+            return kb;
+        }
+
+        static void Press(UnityEngine.InputSystem.Keyboard kb, params UnityEngine.InputSystem.Key[] keys) =>
+            UnityEngine.InputSystem.InputSystem.QueueStateEvent(kb, new UnityEngine.InputSystem.LowLevel.KeyboardState(keys));
+
+        IEnumerator TurtleOnly(ExperienceDirector director, GameManager gm)
+        {
+            director.GetType().GetMethod("Choose", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(director, new object[] { ExperienceMode.TurtleOnly });
+            yield return WaitFor(() => gm.Current == GameState.Hatchling && ScreenFader.Instance.Alpha < 0.05f, 90f);
+            Check("TurtleOnly: starts directly as hatchling", gm.Current == GameState.Hatchling && Mathf.Abs(PlayerRig.Scale - 0.05f) < 0.001f);
+            var flashlight = FindFirstObjectByType<Flashlight>();
+            var hole = FindFirstObjectByType<SandHole>();
+            Check("TurtleOnly: untouched beach (flashlight on, hole open, litter in path)",
+                  flashlight.IsOn && !hole.IsFilled && TrashItem.All.FindAll(t => !t.Cleared).Count >= 8);
+            var spawn = GameObject.Find("TurtleSpawn").transform.position;
+            var turtle = FindFirstObjectByType<TurtleController>();
+            Check("TurtleOnly: hatchling in the nest", (turtle.transform.position - spawn).magnitude < 0.3f);
+
+            // fall into the hole: trapped for a while, but never permanently
+            Time.timeScale = 1f;
+            var kb = Keyboard();
+            Vector3 hc = hole.transform.position;
+            int stuck0 = turtle.TimesStuck;
+            turtle.TeleportTo(new Vector3(hc.x, Ground(hc) + 0.03f, hc.z - 0.1f), 0f);
+            yield return new WaitForSecondsRealtime(0.5f);
+            Press(kb, UnityEngine.InputSystem.Key.W);
+            yield return new WaitForSecondsRealtime(3f);
+            float d3 = Flat(turtle.transform.position - hc);
+            Check($"Hole: hatchling held back after 3 s of crawling ({d3:F2} m from centre, stuck count +{turtle.TimesStuck - stuck0})",
+                  d3 < hole.Radius + 0.1f && turtle.TimesStuck > stuck0);
+            yield return new WaitForSecondsRealtime(9f);
+            Press(kb);
+            float d12 = Flat(turtle.transform.position - hc);
+            Check($"Hole: hatchling climbs out after effort ({d12:F2} m from centre)", d12 > hole.Radius + 0.05f);
+
+            // seagull dive on a hatchling that stays still in the open
+            var flock = FindFirstObjectByType<SeagullFlock>();
+            var seaP = GameObject.Find("SeaPoint").transform.position;
+            Vector3 open = seaP + new Vector3(-1.5f, 0, -3.5f);
+            turtle.TeleportTo(new Vector3(open.x, Ground(open) + 0.02f, open.z), 0f);
+            yield return new WaitForSeconds(4f);   // let the gulls settle into their orbit above the hatchling
+            typeof(SeagullFlock).GetField("_nextDive", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(flock, Time.time);
+            float until = Time.time + 12f;
+            bool stunned = false;
+            while (Time.time < until && flock.Strikes == 0) { stunned |= turtle.IsStunned; yield return null; }
+            stunned |= turtle.IsStunned;
+            Check($"Seagull: dives and strikes a still hatchling (strikes {flock.Strikes}, stunned {stunned})", flock.Strikes >= 1 && stunned);
+            Finish();
+        }
+
+        IEnumerator HumanOnly(ExperienceDirector director, GameManager gm)
+        {
+            director.GetType().GetMethod("Choose", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(director, new object[] { ExperienceMode.HumanOnly });
+            yield return WaitFor(() => FindFirstObjectByType<SmoothLocomotion>().MovementEnabled, 40f);
+            Check("HumanOnly: human phase", gm.Current == GameState.Human);
+
+            // walk with the stick (W) and check footprints are pressed into the sand
+            Time.timeScale = 1f;
+            var kb = Keyboard();
+            var fs = FindFirstObjectByType<FootprintSystem>();
+            int prints0 = fs.Count;
+            Vector3 h0 = PlayerRig.Head.position;
+            Press(kb, UnityEngine.InputSystem.Key.S);
+            float t0 = Time.time;
+            yield return new WaitForSeconds(3f);   // game time: batch mode runs slower than wall-clock
+            Press(kb);
+            float walked = Flat(PlayerRig.Head.position - h0);
+            float gameSeconds = Time.time - t0;
+            Check($"Walk: ~1.4 m/s ({walked / gameSeconds:F2} m/s)", walked / gameSeconds > 1.1f && walked / gameSeconds < 1.6f);
+            Check($"Walk: footprints left in the sand (+{fs.Count - prints0})", fs.Count - prints0 >= 3);
+
+            // the human cannot walk into the sea
+            Press(kb, UnityEngine.InputSystem.Key.W);
+            yield return new WaitForSeconds(8f);
+            Press(kb);
+            var sea = GameObject.Find("SeaPoint").transform.position;
+            Check($"Sea barrier: human stops at the water ({PlayerRig.Head.position.z - sea.z:F2} m past the shoreline)", PlayerRig.Head.position.z < sea.z + 0.5f);
+
+            // hold B (Enter) to finish
+            Press(kb, UnityEngine.InputSystem.Key.Enter);
+            yield return new WaitForSecondsRealtime(2.2f);
+            Press(kb);
+            yield return WaitFor(() => GameObject.Find("EndScreen") != null, 20f);
+            var end = GameObject.Find("EndScreen");
+            var title = end != null ? end.GetComponentInChildren<TMPro.TextMeshPro>() : null;
+            Check($"HumanOnly: end panel ({(title != null ? title.text : "-")})", title != null && title.text == "The night goes on");
+
+            // continue as a hatchling from the same beach
+            Run(director, "ContinueAsTurtle");
+            yield return WaitFor(() => gm.Current == GameState.Hatchling && ScreenFader.Instance.Alpha < 0.05f, 60f);
+            Check("HumanOnly -> Continue as a hatchling works", gm.Current == GameState.Hatchling && Mathf.Abs(PlayerRig.Scale - 0.05f) < 0.001f);
+            Check($"Footprints persist into the hatchling phase ({fs.Count})", fs.Count - prints0 >= 3);
+            Finish();
+        }
+
+        static float Flat(Vector3 v) => new Vector2(v.x, v.z).magnitude;
 
         static float Ground(Vector3 p)
         {

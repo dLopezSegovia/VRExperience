@@ -143,6 +143,30 @@ Tools/Blender, Tools/Audio      scripts que generan modelos y sonidos
 Los valores importantes son configurables en el Inspector: velocidades, brazadas, impulso, atracción de la
 luz, ángulo de atención, gaviotas, volúmenes por fase y tiempos de transición.
 
+## Validación realizada (sin visor)
+
+Todo se ha comprobado con Unity en modo batch:
+
+- **Compilación** sin errores; **validador** (`Same Shore → Validate Scene`) sin scripts perdidos ni
+  referencias nulas.
+- **Capturas renderizadas** de la vista humana y de la vista de la tortuga
+  (`SameShorePreview`, `SameShoreShotsOnly`).
+- **Prueba automática en Play Mode** (`Same Shore → Run Smoke Test (Play Mode)`; informe en
+  `Logs/SameShoreSmokeTest.txt`). Simula la entrada con el teclado y recorre los tres modos:
+  - **Full** (35 comprobaciones):
+    - menú → humano → transición → tortuga;
+    - escala 0,05, ojos a 8 cm y plano cercano a 3 mm;
+    - persistencia de la botella en la papelera, la linterna apagada y el hoyo relleno;
+    - la luz del mar orienta y la linterna desvía la trayectoria (0,7 m en 4 s);
+    - brazadas reales (~0,17 m/s) y giro de 25°/s;
+    - llegada al mar con "Great Job" y reintento conservando la playa.
+  - **Turtle**: playa intacta; el hoyo retiene a la tortuga y luego la deja salir; una gaviota golpea y
+    aturde a una tortuga quieta.
+  - **Human**: caminar a 1,40 m/s con huellas; la barrera impide entrar en el mar; el panel final da paso
+    a *Continue as a hatchling*, y las huellas persisten.
+
+Para elegir el modo de la prueba, escribe `full`, `human` o `turtle` en `Logs/SameShoreSmokeMode.txt`.
+
 ## Pendiente / requiere prueba real en Quest 3
 
 - **No se ha podido probar con las Quest 3**: la validación se hizo en modo batch (compilación, validador de
