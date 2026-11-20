@@ -18,7 +18,7 @@ namespace SameShore
         [SerializeField] private float finishHoldSeconds = 1.6f;
         [Tooltip("Objects that only make sense with the Meta teleport locomotion (e.g. Teleport Hotspot).")]
         [SerializeField] private GameObject[] disableObjects;
-        [SerializeField] private string[] isdkLocomotionKeywords = { "Teleport", "Locomotion", "Locomotor", "Turner" };
+        [SerializeField] private string[] isdkLocomotionKeywords = { "Teleport", "Locomotion", "Locomotor", "Turner", "Tunneling" };
 
         public bool Active { get; private set; }
         public string FinishLabel { get; set; } = "End the night and become a hatchling";
@@ -52,8 +52,12 @@ namespace SameShore
                     if (b == null) continue;
                     Type t = b.GetType();
                     if (t.Namespace == null || !t.Namespace.StartsWith("Oculus.Interaction")) continue;
+                    // The ISDK comfort tunneling belongs to its own locomotor: with that locomotor off, its
+                    // "logical head" stays at the start and WallPenetrationTunneling would close the view
+                    // with a black vignette as soon as the player walks away. Always switch it off.
+                    bool tunneling = t.Name.Contains("Tunneling");
                     foreach (string k in isdkLocomotionKeywords)
-                        if (t.Name.Contains(k)) { _isdk.Add(b); b.enabled = false; break; }
+                        if (tunneling || t.Name.Contains(k)) { _isdk.Add(b); b.enabled = false; break; }
                 }
                 Debug.Log($"[SameShore] Disabled {_isdk.Count} Meta ISDK locomotion components (smooth stick walking is used instead).");
 

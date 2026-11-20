@@ -74,6 +74,16 @@ namespace SameShore.Tests
             yield return Hold(1.5f, Key.W);
             float walked = Flat(PlayerRig.Head.position - p0);
             t.Check($"WASD walks the human ({walked:F2} m in 1.5 s)", walked > 1.6f);
+            yield return Hold(2f, Key.S);   // walk away from the start: this used to trigger the ISDK wall tunneling
+            int vignettes = 0;
+            foreach (var te in Object.FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                if (!te.GetType().Name.Contains("Tunneling")) continue;
+                if (te.enabled) vignettes++;
+                foreach (var r in te.GetComponentsInChildren<MeshRenderer>()) if (r.enabled) vignettes++;
+            }
+            t.Check($"No black comfort vignette after walking (active tunneling parts: {vignettes})", vignettes == 0);
+            SaveView("desktop_human_view.png");
 
             TrashItem bottle = TrashItem.All.Find(x => x.Label == "bottle" && !x.Cleared);
             yield return WalkTo(bottle.transform.position, 1.2f);
@@ -307,6 +317,24 @@ namespace SameShore.Tests
         }
 
         // ================================================================== helpers
+        static void SaveView(string file)
+        {
+            var cam = PlayerRig.HeadCamera;
+            var rt = new RenderTexture(960, 540, 24);
+            var prev = cam.targetTexture;
+            cam.targetTexture = rt;
+            cam.Render();
+            cam.targetTexture = prev;
+            RenderTexture.active = rt;
+            var tex = new Texture2D(960, 540, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, 960, 540), 0, 0);
+            tex.Apply();
+            RenderTexture.active = null;
+            System.IO.File.WriteAllBytes(System.IO.Path.Combine(Application.dataPath, "../Logs/" + file), tex.EncodeToPNG());
+            Object.Destroy(rt);
+            Object.Destroy(tex);
+        }
+
         static void LogRaycast(UIButton b)
         {
             var cam = PlayerRig.HeadCamera;
