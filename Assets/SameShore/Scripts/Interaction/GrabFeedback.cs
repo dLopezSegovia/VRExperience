@@ -1,4 +1,4 @@
-using Oculus.Interaction;
+﻿using Oculus.Interaction;
 using UnityEngine;
 
 namespace SameShore
@@ -11,7 +11,9 @@ namespace SameShore
         [SerializeField] private float thudVolume = 0.6f;
         [SerializeField] private float minImpactSpeed = 0.8f;
 
-        public bool IsHeld => grabbable != null && grabbable.SelectingPointsCount > 0;
+        /// <summary>Set by the DesktopInteractor while it carries this object (Desktop Testing mode).</summary>
+        public bool DesktopHeld { get; set; }
+        public bool IsHeld => DesktopHeld || (grabbable != null && grabbable.SelectingPointsCount > 0);
         public bool WasEverMoved { get; private set; }
 
         bool _held;

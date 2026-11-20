@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace SameShore
 {
@@ -77,6 +78,19 @@ namespace SameShore
 
         public LazyFollow Follow { get; private set; }
         readonly List<UIButton> _buttons = new List<UIButton>();
+
+        /// <summary>Panel with buttons (menu, end screen): the desktop cursor is freed while one is open.</summary>
+        public bool Interactive => _buttons.Count > 0;
+        public IReadOnlyList<UIButton> Buttons => _buttons;
+
+        public static bool AnyInteractiveVisible
+        {
+            get
+            {
+                foreach (var p in Visible) if (p != null && p.Interactive) return true;
+                return false;
+            }
+        }
 
         public static UIPanel Create(string name, Vector2 size, float distance = 1.4f, Color? background = null)
         {
@@ -164,10 +178,29 @@ namespace SameShore
         }
     }
 
-    public class UIButton : MonoBehaviour
+    /// <summary>
+    /// World-space button. Clicked by the XR controller laser (VRPointer) or, in Desktop Testing mode,
+    /// by the mouse through the EventSystem (PhysicsRaycaster + Input System UI module).
+    /// </summary>
+    public class UIButton : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
     {
         static readonly Color Normal = new Color(0.12f, 0.2f, 0.3f, 0.95f);
         static readonly Color Hover = new Color(0.22f, 0.5f, 0.62f, 1f);
+
+        public static int UILayer => LayerMask.NameToLayer("UI") >= 0 ? LayerMask.NameToLayer("UI") : 5;
+        public string Label { get; private set; }
+        public bool IsHovered => Time.unscaledTime < _hoverUntil || _pointerOver;
+        bool _pointerOver;
+
+        public void OnPointerEnter(PointerEventData e) => _pointerOver = true;
+        public void OnPointerExit(PointerEventData e) => _pointerOver = false;
+
+        public void OnPointerClick(PointerEventData e)
+        {
+            if (e.button == PointerEventData.InputButton.Left) Click();
+        }
+
+        void OnDisable() => _pointerOver = false;
 
         Action _onClick;
         XRInput.KeyId? _hotkey;
@@ -179,6 +212,10 @@ namespace SameShore
         {
             _onClick = onClick;
             _hotkey = hotkey;
+            Label = label;
+            // built-in "UI" layer: the desktop PhysicsRaycaster only looks at buttons, so world triggers
+            // in front of a panel (e.g. the sea goal at hatchling scale) never steal the pointer
+            gameObject.layer = UILayer;
             var bg = UIPanel.Quad("Bg", transform, Vector3.zero, size, SameShoreAssets.I.uiPanel, Normal, 10);
             _mat = bg.GetComponent<MeshRenderer>().sharedMaterial;
             var col = gameObject.AddComponent<BoxCollider>();
@@ -201,7 +238,7 @@ namespace SameShore
 
         void Update()
         {
-            bool hover = Time.unscaledTime < _hoverUntil;
+            bool hover = IsHovered;
             _mat.color = Color.Lerp(_mat.color, hover ? Hover : Normal, Time.unscaledDeltaTime * 14f);
             transform.localScale = Vector3.Lerp(transform.localScale, _baseScale * (hover ? 1.04f : 1f), Time.unscaledDeltaTime * 14f);
             if (_hotkey.HasValue && XRInput.KeyDown(_hotkey.Value)) Click();

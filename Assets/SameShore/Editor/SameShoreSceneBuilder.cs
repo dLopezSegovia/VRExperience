@@ -41,7 +41,13 @@ namespace SameShore.EditorTools
             SameShoreAssets assets = CreateAssetsObject();
 
             EnsureFolder(Root + "/Scenes");
-            AssetDatabase.CopyAsset(SourceScene, TargetScene);
+            if (AssetDatabase.LoadAssetAtPath<SceneAsset>(TargetScene) != null)
+            {
+                // overwrite the content but keep the .meta, so the scene GUID (and every reference to it) is stable
+                System.IO.File.Copy(SourceScene, TargetScene, true);
+                AssetDatabase.ImportAsset(TargetScene, ImportAssetOptions.ForceUpdate);
+            }
+            else AssetDatabase.CopyAsset(SourceScene, TargetScene);
             AssetDatabase.Refresh();
             EditorSceneManager.OpenScene(TargetScene, OpenSceneMode.Single);
 
@@ -1204,6 +1210,9 @@ namespace SameShore.EditorTools
             Set(flock, "turtle", turtle);
 
             var fader = systems.gameObject.AddComponent<ScreenFader>();
+            // Editor without a headset: mouse/keyboard testing (inactive on Quest / with Link)
+            systems.gameObject.AddComponent<DesktopTestingMode>();
+            systems.gameObject.AddComponent<DesktopInteractor>();
             foreach (var hand in new[] { Hand.Left, Hand.Right })
             {
                 var p = Child(systems, "Pointer" + hand).AddComponent<VRPointer>();
@@ -1312,9 +1321,11 @@ namespace SameShore.EditorTools
 
         static void AddToBuildSettings()
         {
-            var scenes = EditorBuildSettings.scenes.Where(s => s.path != TargetScene).ToList();
-            scenes.Insert(0, new EditorBuildSettingsScene(TargetScene, true));
+            var guid = new GUID(AssetDatabase.AssetPathToGUID(TargetScene));
+            var scenes = EditorBuildSettings.scenes.Where(s => s.path != TargetScene && s.guid != guid).ToList();
+            scenes.Insert(0, new EditorBuildSettingsScene(guid, true));
             EditorBuildSettings.scenes = scenes.ToArray();
+            AssetDatabase.SaveAssets();
         }
 
         static T GetOrAdd<T>(GameObject go) where T : Component

@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -63,7 +63,7 @@ namespace SameShore
 #endif
         }
 
-        public enum KeyId { Space, Enter, F, G, R, M, Digit1, Digit2, Digit3 }
+        public enum KeyId { Space, Enter, F, G, R, M, E, Digit1, Digit2, Digit3 }
 
 #if ENABLE_INPUT_SYSTEM
         static UnityEngine.InputSystem.Controls.KeyControl Key(Keyboard kb, KeyId k)
@@ -76,6 +76,7 @@ namespace SameShore
                 case KeyId.G: return kb.gKey;
                 case KeyId.R: return kb.rKey;
                 case KeyId.M: return kb.mKey;
+                case KeyId.E: return kb.eKey;
                 case KeyId.Digit1: return kb.digit1Key;
                 case KeyId.Digit2: return kb.digit2Key;
                 default: return kb.digit3Key;
@@ -98,8 +99,10 @@ namespace SameShore
             }
             else
             {
-                if (kb.eKey.isPressed || kb.rightArrowKey.isPressed) v.x += 1;
-                if (kb.qKey.isPressed || kb.leftArrowKey.isPressed) v.x -= 1;
+                // in Desktop Testing mode the mouse turns and E is "interact", so Q/E are not used for turning
+                bool qe = !DesktopTestingMode.Active;
+                if ((qe && kb.eKey.isPressed) || kb.rightArrowKey.isPressed) v.x += 1;
+                if ((qe && kb.qKey.isPressed) || kb.leftArrowKey.isPressed) v.x -= 1;
                 if (kb.upArrowKey.isPressed) v.y += 1;
                 if (kb.downArrowKey.isPressed) v.y -= 1;
             }

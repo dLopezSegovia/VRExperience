@@ -17,8 +17,43 @@ rellenar el hoyo, mover la silla) es exactamente lo que la tortuga encuentra des
 2. Abre `Assets/SameShore/Scenes/SameShore.unity`.
 3. **En el visor (recomendado):** conecta las Quest 3 con Quest Link / Air Link y pulsa Play.
    Para un build autónomo, usa el perfil *Meta Quest* (Android) y *Build And Run*.
-4. **Sin visor (solo para probar la lógica):** pulsa Play y usa el teclado (ver *Controles*). El
-   `OVRHeadsetEmulator` del rig permite mover la cabeza con Ctrl + ratón.
+4. **Sin visor:** pulsa Play en el Editor. El **modo Desktop Testing** se activa solo (ver abajo).
+
+## Modo Desktop Testing (Editor sin Meta Quest)
+
+Se activa automáticamente al pulsar Play en el Editor si no hay ningún dispositivo XR funcionando. Con
+las Quest 3 (build Android o Quest Link) no se activa y los controles XR no cambian.
+
+- Puedes forzarlo en el componente `DesktopTestingMode` (`SameShore_Systems`): *Auto / ForceDesktop / ForceXR*.
+- También con la variable de entorno `SAMESHORE_DESKTOP=1/0`, o con `-sameshore-desktop` / `-sameshore-xr`.
+
+Cómo funciona, reutilizando lo existente:
+- **Cámara:** usa el mismo `OVRCameraRig`. `TrackingSpace` se eleva a 1,65 m y gira con el ratón, que es
+  lo que haría el visor. Como tortuga, la escala 0,05 deja los ojos a ~8 cm igual que en VR.
+  `OVRHeadsetEmulator` se desactiva solo en este modo.
+- **Menús:** se usan los mismos botones del menú y de las pantallas finales.
+  - Busca el `EventSystem` de la escena y, si no hay ninguno, lo crea.
+  - Le añade `InputSystemUIInputModule` (el proyecto usa solo el Input System) y desactiva los módulos
+    incompatibles.
+  - Pone un `PhysicsRaycaster`, limitado a la capa `UI`, en la cámara.
+  - `UIButton` recibe hover y clic del ratón por el EventSystem; el láser de los mandos sigue igual.
+- **Interacción:** `DesktopInteractor` actúa sobre los mismos `Grabbable`, `Flashlight`, `SandBucket`,
+  `TrashBin` y `GrabFeedback` que el agarre XR.
+
+| Acción | Humano | Tortuga |
+|---|---|---|
+| Moverse | WASD | W / S reptar · A / D girar el cuerpo |
+| Mirar | Ratón | Ratón |
+| Coger / soltar (basura, cubo, linterna, silla) | Clic izq. o **E** | — |
+| Usar: encender/apagar la linterna (sostenida o apuntada), volcar el cubo (mantener) | Clic der. o **F** | — |
+| Recargar el cubo | Con el cubo cogido, apunta a la arena | — |
+| Tirar a la papelera | Apunta a la papelera con el objeto y suéltalo | — |
+| Impulso | — | Espacio |
+| Terminar la noche | Mantén Enter | — |
+| Menús y pantallas finales | Ratón (hover + clic) o 1 / 2 / 3, R / M | igual |
+| Liberar / capturar el cursor | Esc / clic en la vista | igual |
+
+Abajo aparecen una mira y una línea de ayuda (solo en este modo).
 
 Si cambias `Assets/Scenes/SampleScene.unity` o los scripts del constructor, regenera la escena con
 **menú `Same Shore → Build Scene`** y compruébala con **`Same Shore → Validate Scene`**.
@@ -41,17 +76,17 @@ Si las gaviotas te atrapan 3 veces, aparece una pantalla de derrota con *Try aga
 ## Controles
 
 ### Humano (VS1)
-| Acción | Mando | Teclado |
+| Acción | Mando (Quest 3) | Desktop Testing |
 |---|---|---|
 | Caminar (1,4 m/s, relativo a la mirada) | Stick izquierdo | WASD |
-| Girar (por saltos de 30°; se puede cambiar a giro suave en `SmoothLocomotion`) | Stick derecho | Q / E |
+| Girar (por saltos de 30°; se puede cambiar a giro suave en `SmoothLocomotion`) | Stick derecho | Ratón (Desktop Testing) |
 | Agarrar / soltar (basura, silla, cubos, linterna) | Grip (agarre ISDK) | — |
-| Encender / apagar la linterna | Gatillo o A/X mientras la sostienes | F |
+| Encender / apagar la linterna | Gatillo o A/X mientras la sostienes | F o clic der. |
 | Rellenar el hoyo | Inclina un cubo con arena sobre el hoyo; para recargarlo, hunde el cubo en la arena | — |
 | Terminar la fase | Mantén **B / Y** 1,6 s | Mantén Enter |
 
 ### Tortuga (VS2)
-| Acción | Mando | Teclado |
+| Acción | Mando (Quest 3) | Desktop Testing |
 |---|---|---|
 | Reptar (brazadas a pulsos mientras mantienes el stick; sin desplazamiento lateral) | Stick (cualquiera) adelante | W |
 | Reptar marcha atrás (más lento) | Stick atrás | S |
@@ -165,7 +200,22 @@ Todo se ha comprobado con Unity en modo batch:
   - **Human**: caminar a 1,40 m/s con huellas; la barrera impide entrar en el mar; el panel final da paso
     a *Continue as a hatchling*, y las huellas persisten.
 
-Para elegir el modo de la prueba, escribe `full`, `human` o `turtle` en `Logs/SameShoreSmokeMode.txt`.
+  - **Desktop** (38 comprobaciones). Usa solo un ratón y un teclado simulados (Input System), sin invocar
+    métodos:
+    - EventSystem, módulo de entrada y raycaster detectados;
+    - hover y clic del ratón en *Full Experience*;
+    - captura del cursor, Esc y mirar con el ratón;
+    - caminar con WASD, coger una botella con E y tirarla a la papelera con clic;
+    - apagar la linterna con F;
+    - volcar el cubo con clic derecho, recargarlo en la arena y rellenar el hoyo;
+    - mantener Enter, comprobar la persistencia y reptar, girar e impulsarse como tortuga;
+    - llegar al mar ("Great Job");
+    - hover y clic en *Main menu*, que recarga la escena;
+    - hover y clic en *Turtle Experience*.
+  - **Ruta XR**: la prueba *Full* también pasa con `SAMESHORE_DESKTOP=0` (modo escritorio apagado).
+
+Para elegir el modo de la prueba, escribe `full`, `human`, `turtle` o `desktop` en
+`Logs/SameShoreSmokeMode.txt`.
 
 ## Pendiente / requiere prueba real en Quest 3
 

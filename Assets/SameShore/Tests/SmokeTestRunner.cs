@@ -15,8 +15,13 @@ namespace SameShore.Tests
         readonly StringBuilder _log = new StringBuilder();
         int _fail;
 
+        static SmokeTestRunner _running;
+
         IEnumerator Start()
         {
+            // a scene reload in the Editor can bring a second copy of the test object: keep only the first
+            if (_running != null && _running != this) { Destroy(gameObject); yield break; }
+            _running = this;
             Time.timeScale = 4f;
             yield return Wait(2f);
             var director = FindFirstObjectByType<ExperienceDirector>();
@@ -26,6 +31,7 @@ namespace SameShore.Tests
 
             string modeFile = System.IO.Path.Combine(Application.dataPath, "../Logs/SameShoreSmokeMode.txt");
             string mode = System.IO.File.Exists(modeFile) ? System.IO.File.ReadAllText(modeFile).Trim() : "full";
+            if (mode == "desktop") { yield return DesktopTestRun.Run(this); yield break; }
             if (mode == "turtle") { yield return TurtleOnly(director, gm); yield break; }
             if (mode == "human") { yield return HumanOnly(director, gm); yield break; }
 
@@ -294,7 +300,7 @@ namespace SameShore.Tests
             target.StartCoroutine((IEnumerator)m.Invoke(target, null));
         }
 
-        void Check(string what, bool ok)
+        public void Check(string what, bool ok)
         {
             if (!ok) _fail++;
             string line = (ok ? "PASS  " : "FAIL  ") + what;
@@ -302,7 +308,7 @@ namespace SameShore.Tests
             Debug.Log("[SameShoreTest] " + line);
         }
 
-        void Finish()
+        public void Finish()
         {
             Time.timeScale = 1f;
             _log.AppendLine(_fail == 0 ? "ALL CHECKS PASSED" : $"{_fail} CHECK(S) FAILED");

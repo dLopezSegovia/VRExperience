@@ -7,7 +7,7 @@ EditorBuildSettings:
   m_Scenes:
   - enabled: 1
     path: Assets/SameShore/Scenes/SameShore.unity
-    guid: 2b1290b971c11cb4f90826e4394bbc61
+    guid: 91ce28ef1a79837439064e0a4579be3b
   - enabled: 1
     path: Assets/Scenes/SampleScene.unity
     guid: 99c9720ab356a0642a771bea13969a05

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using TMPro;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -115,8 +115,11 @@ namespace SameShore
                 yield return Story("Tonight, the nest hatches.");
                 yield return fader.FadeTo(0f, fadeSeconds * 1.5f);
                 human.SetActive(true);
-                ShowHint("<b>Walk</b> left stick  Â·  <b>Turn</b> right stick\n<b>Grab</b> grip  Â·  <b>Flashlight</b> trigger while holding it\n" +
-                         "Tip a bucket of sand over the hole to fill it\n<b>Hold B / Y</b> when you are done", 14f);
+                ShowHint(DesktopTestingMode.Active
+                    ? "<b>Walk</b> WASD  ·  <b>Look</b> mouse\n<b>Grab / drop</b> left click or E  ·  <b>Use</b> right click or F\n" +
+                      "Tip a bucket of sand over the hole to fill it\n<b>Hold Enter</b> when you are done"
+                    : "<b>Walk</b> left stick  ·  <b>Turn</b> right stick\n<b>Grab</b> grip  ·  <b>Flashlight</b> trigger while holding it\n" +
+                      "Tip a bucket of sand over the hole to fill it\n<b>Hold B / Y</b> when you are done", 14f);
             }
             _busy = false;
         }
@@ -161,7 +164,9 @@ namespace SameShore
             ambient.Apply(Perception.Hatchling, 2f);
             yield return new WaitForSeconds(0.3f);
             yield return fader.FadeTo(0f, fadeSeconds * 1.6f);
-            ShowHint("<b>Reach the sea.</b>\nLeft stick forward: crawl  Â·  left / right: turn slowly\n<b>A / X</b>: sudden burst  Â·  back: crawl backwards", 12f);
+            ShowHint(DesktopTestingMode.Active
+                ? "<b>Reach the sea.</b>\nW: crawl  ·  A / D: turn slowly  ·  S: crawl backwards\n<b>Space</b>: sudden burst  ·  mouse: look around"
+                : "<b>Reach the sea.</b>\nLeft stick forward: crawl  ·  left / right: turn slowly\n<b>A / X</b>: sudden burst  ·  back: crawl backwards", 12f);
         }
 
         // ------------------------------------------------------------------ endings
@@ -171,7 +176,7 @@ namespace SameShore
             yield return new WaitForSeconds(1.2f);
             if (gulls != null) gulls.Stop();
             string body = $"You reached the sea in {Format(turtle.ElapsedTime)}.\n" +
-                          $"<size=80%>{turtle.Strokes} flipper strokes  Â·  stuck {turtle.TimesStuck} times  Â·  " +
+                          $"<size=80%>{turtle.Strokes} flipper strokes  ·  stuck {turtle.TimesStuck} times  ·  " +
                           $"pulled by artificial light for {Mathf.RoundToInt(turtle.SecondsPulledByArtificialLight)} s</size>\n\n" +
                           "<size=80%>Only about 1 in 1,000 hatchlings survives to adulthood.\nWhat we leave on the beach decides the odds.</size>";
             ShowEnd("Great Job", body, true,
@@ -282,7 +287,8 @@ namespace SameShore
                             () => Choose(ExperienceMode.HumanOnly), XRInput.KeyId.Digit2);
             _menu.AddButton("Turtle Experience", "Start in the nest", new Vector2(0.235f, -0.22f), new Vector2(0.44f, 0.15f),
                             () => Choose(ExperienceMode.TurtleOnly), XRInput.KeyId.Digit3);
-            _menu.AddText("Point with a controller and pull the trigger", 0.26f, new Vector2(0, -0.42f), new Vector2(1.3f, 0.06f), new Color(0.6f, 0.68f, 0.75f));
+            _menu.AddText(DesktopTestingMode.Active ? "Desktop testing: click a button with the mouse (or press 1 / 2 / 3)"
+                                                    : "Point with a controller and pull the trigger", 0.26f, new Vector2(0, -0.42f), new Vector2(1.3f, 0.06f), new Color(0.6f, 0.68f, 0.75f));
 
             _story = UIPanel.Create("Story", new Vector2(1.3f, 0.4f), 1.6f, new Color(0, 0, 0, 0));
             _story.Follow.follow = false;
