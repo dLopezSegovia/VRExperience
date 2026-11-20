@@ -53,6 +53,18 @@ namespace SameShore
         public bool FlashlightOn => flashlight != null && flashlight.IsOn;
         public bool HoleFilled => hole == null || hole.IsFilled;
         public bool ChairMoved => chair != null && (chair.position - _chairStart).magnitude > 0.5f;
+        /// <summary>The chair no longer stands on the hatchlings' way to the sea.</summary>
+        public bool ChairClear => chair == null || !InPath(ChairPosition ?? chair.position);
+        public Vector3? ChairPosition => chair != null ? ChairCenter() : (Vector3?)null;
+
+        Vector3 ChairCenter()
+        {
+            var rs = chair.GetComponentsInChildren<Renderer>();
+            if (rs.Length == 0) return chair.position;
+            Bounds b = rs[0].bounds;
+            foreach (var r in rs) b.Encapsulate(r.bounds);
+            return new Vector3(b.center.x, b.min.y, b.center.z);
+        }
 
         public string Summary()
         {

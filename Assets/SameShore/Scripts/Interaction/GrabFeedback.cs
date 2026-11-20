@@ -1,4 +1,4 @@
-﻿using Oculus.Interaction;
+using Oculus.Interaction;
 using UnityEngine;
 
 namespace SameShore
@@ -16,8 +16,13 @@ namespace SameShore
         public bool IsHeld => DesktopHeld || (grabbable != null && grabbable.SelectingPointsCount > 0);
         public bool WasEverMoved { get; private set; }
 
+        public static readonly System.Collections.Generic.List<GrabFeedback> All = new System.Collections.Generic.List<GrabFeedback>();
+
         bool _held;
         float _lastThud;
+
+        void OnEnable() => All.Add(this);
+        void OnDisable() => All.Remove(this);
 
         void Reset() => grabbable = GetComponent<Grabbable>();
 

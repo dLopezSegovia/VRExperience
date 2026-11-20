@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace SameShore.EditorTools
 {
@@ -95,6 +95,39 @@ namespace SameShore.EditorTools
                     bool inWin = x > 3 && x < cell - 3 && y > 4 && y < cell - 2;
                     t.SetPixel(cx * cell + x, cy * cell + y, inWin ? win : wall);
                 }
+            }
+            t.Apply();
+            return t;
+        }
+
+        /// <summary>Hatchling crawl track: two rows of flipper scoops either side of a shallow drag line.</summary>
+        public static Texture2D TurtleTrack(int w = 128, int h = 64)
+        {
+            var t = new Texture2D(w, h, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float u = (x + 0.5f) / w * 2 - 1, v = (y + 0.5f) / h;
+                float drag = Mathf.Clamp01(1 - Mathf.Abs(u) / 0.12f) * 0.45f;
+                float side = Mathf.Abs(u);
+                float scoop = Mathf.Clamp01(1 - Mathf.Abs(side - 0.7f) / 0.16f) * Mathf.Clamp01(1 - Mathf.Abs(v - 0.5f) / 0.4f);
+                float a = Mathf.Max(drag, scoop * 0.8f) * (0.8f + 0.2f * Mathf.PerlinNoise(x * 0.2f, y * 0.2f));
+                t.SetPixel(x, y, new Color(1, 1, 1, a));
+            }
+            t.Apply();
+            return t;
+        }
+
+        /// <summary>Soft ring (ground marker).</summary>
+        public static Texture2D Ring(int n = 128)
+        {
+            var t = new Texture2D(n, n, TextureFormat.RGBA32, true) { wrapMode = TextureWrapMode.Clamp };
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float u = (x + 0.5f) / n * 2 - 1, v = (y + 0.5f) / n * 2 - 1;
+                float r = Mathf.Sqrt(u * u + v * v);
+                t.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(1 - Mathf.Abs(r - 0.82f) / 0.07f)));
             }
             t.Apply();
             return t;

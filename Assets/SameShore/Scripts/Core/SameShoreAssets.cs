@@ -33,6 +33,28 @@ namespace SameShore
         public AudioClip success;
         public AudioClip transition;
 
+        [Header("Audio - narrative redesign")]
+        public AudioClip turtleBreath;
+        public AudioClip nestScratching;
+        public AudioClip swashWash;
+        public AudioClip waveCrashBig;
+        public AudioClip underwater;
+        public AudioClip objectiveDone;
+        public AudioClip objectiveLeft;
+        public AudioClip uiTick;
+        public AudioClip lightHum;
+        public AudioClip gullScreech;
+        public AudioClip gullDive;
+        public AudioClip endingPad;
+
+        [Header("Visual - narrative redesign")]
+        public Material lightCone;
+        public Material groundDecal;
+        public Material warningRing;
+        public Texture2D turtleTrack;
+        public Mesh[] pebbles;
+        public Material pebble;
+
         static SameShoreAssets _instance;
 
         public static SameShoreAssets I

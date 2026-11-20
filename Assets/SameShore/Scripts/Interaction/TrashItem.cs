@@ -14,6 +14,12 @@ namespace SameShore
         public bool InBin { get; set; }
         public bool Cleared => InBin || !BeachStateTracker.InPath(transform.position);
 
+        void Start()
+        {
+            var rb = GetComponent<Rigidbody>();
+            if (rb != null) rb.Sleep();
+        }
+
         void OnEnable() => All.Add(this);
         void OnDisable() => All.Remove(this);
     }

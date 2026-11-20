@@ -100,8 +100,10 @@ namespace SameShore
         bool IsDippedInSand(Vector3 mouth)
         {
             if (_grab != null && !_grab.IsHeld) return false;
-            if (!FootprintSystem.GroundHit(mouth, out RaycastHit hit)) return false;
-            return mouth.y < hit.point.y + scoopDepth + mouthHeight * 0.6f && transform.position.y < hit.point.y + scoopDepth;
+            // the base of the bucket is pushed into the sand (measured under the base itself, so it
+            // also works on the sloping beach) and the bucket is roughly upright
+            if (!FootprintSystem.GroundHit(transform.position + Vector3.up * 0.3f, out RaycastHit hit)) return false;
+            return transform.position.y < hit.point.y + scoopDepth && mouth.y < hit.point.y + mouthHeight + 0.05f;
         }
 
         static SandHole HoleBelow(Vector3 mouth)

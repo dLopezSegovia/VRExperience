@@ -64,11 +64,11 @@ Shader "SameShore/TurtleVision"
                 float dark = smoothstep(_InnerAngle, _OuterAngle, ang) * _MaxDarkness;
 
                 float3 p = normalize(_PullDir.xyz + 1e-5);
-                float pull = pow(saturate(dot(d, p)), 24) * _PullStrength;
+                float pull = pow(saturate(dot(d, p)), 70) * _PullStrength;
 
                 float tint = smoothstep(_InnerAngle * 0.4, _InnerAngle * 1.3, ang) * _Tint.a;
                 float a = saturate(dark + tint * (1 - dark)) * _Intensity;
-                half3 rgb = (_Tint.rgb * tint * (1 - dark) + _PullColor.rgb * pull * 0.55) * _Intensity;
+                half3 rgb = (_Tint.rgb * tint * (1 - dark) + _PullColor.rgb * pull * 0.3) * _Intensity;
                 return half4(rgb, a);
             }
             ENDHLSL

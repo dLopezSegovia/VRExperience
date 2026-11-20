@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
@@ -21,6 +21,8 @@ namespace SameShore
         [SerializeField] private string[] isdkLocomotionKeywords = { "Teleport", "Locomotion", "Locomotor", "Turner", "Tunneling" };
 
         public bool Active { get; private set; }
+        [Tooltip("Old shortcut: hold B/Y to end the night. The narrative now ends the night at the nest.")]
+        [SerializeField] private bool allowFinishHold = false;
         public string FinishLabel { get; set; } = "End the night and become a hatchling";
         public event Action FinishRequested;
 
@@ -97,7 +99,7 @@ namespace SameShore
         {
             if (!Active || PlayerRig.Head == null) return;
             Footsteps();
-            FinishHold();
+            if (allowFinishHold) FinishHold();
         }
 
         void Footsteps()

@@ -48,6 +48,28 @@ namespace SameShore
         GameObject _overlay;
         Material _overlayMat;
         Coroutine _blend;
+        float _eyes = 1f;
+
+        /// <summary>
+        /// Birth of the hatchling's view: the attention cone opens from almost closed to normal
+        /// (purely an overlay; the camera itself is never moved or rotated).
+        /// </summary>
+        public void OpenEyes(float seconds)
+        {
+            StartCoroutine(OpenEyesRoutine(seconds));
+        }
+
+        IEnumerator OpenEyesRoutine(float seconds)
+        {
+            for (float t = 0; t < seconds; t += Time.deltaTime)
+            {
+                _eyes = Mathf.SmoothStep(0f, 1f, t / seconds);
+                yield return null;
+            }
+            _eyes = 1f;
+        }
+
+        public void CloseEyes() => _eyes = 0f;
 
         void Awake()
         {
@@ -130,9 +152,9 @@ namespace SameShore
             Vector3 f = Body != null ? Body.forward : PlayerRig.FlatForward;
             f = Quaternion.AngleAxis(-12f, Vector3.Cross(Vector3.up, f).normalized) * f; // attend slightly upward (horizon)
             _overlayMat.SetVector("_BodyForward", f);
-            _overlayMat.SetFloat("_InnerAngle", attentionInner);
-            _overlayMat.SetFloat("_OuterAngle", attentionOuter);
-            _overlayMat.SetFloat("_MaxDarkness", attentionDarkness);
+            _overlayMat.SetFloat("_InnerAngle", Mathf.Lerp(2f, attentionInner, _eyes));
+            _overlayMat.SetFloat("_OuterAngle", Mathf.Lerp(25f, attentionOuter, _eyes));
+            _overlayMat.SetFloat("_MaxDarkness", Mathf.Lerp(1f, attentionDarkness, _eyes));
             _overlayMat.SetVector("_PullDir", PullDirection);
             _overlayMat.SetFloat("_PullStrength", Mathf.Clamp01(PullStrength));
         }

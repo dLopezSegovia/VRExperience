@@ -179,6 +179,17 @@ namespace SameShore
 
             Quaternion yaw = Quaternion.Euler(0, h.eulerAngles.y, 0);
             Quaternion rot = yaw * _relRot;
+            var grip = Held.GetComponent<GripAlignment>();
+            if (grip != null)
+            {
+                // held like in the hand: in the lower right of the view, pointing where you look
+                pos = h.TransformPoint(grip.DesktopOffset);
+                rot = h.rotation * grip.RotationOffset;
+                Held.transform.SetPositionAndRotation(pos, rot);
+                Held.position = pos;
+                Held.rotation = rot;
+                return;
+            }
             if (pouring) rot = Quaternion.AngleAxis(pourTilt, yaw * Vector3.forward) * rot;
             Held.transform.SetPositionAndRotation(pos, rot);
             Held.position = pos;
@@ -197,7 +208,8 @@ namespace SameShore
 
         static Bounds Bounds(Rigidbody rb)
         {
-            var rs = rb.GetComponentsInChildren<Renderer>();
+            // meshes only: particle systems (the bucket's sand stream) report unrelated bounds
+            var rs = rb.GetComponentsInChildren<MeshRenderer>();
             if (rs.Length == 0) return new Bounds(rb.position, Vector3.zero);
             Bounds b = rs[0].bounds;
             foreach (var r in rs) b.Encapsulate(r.bounds);

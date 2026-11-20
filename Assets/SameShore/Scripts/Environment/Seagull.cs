@@ -1,186 +1,259 @@
+using System;
 using UnityEngine;
 
 namespace SameShore
 {
     /// <summary>
-    /// Kinematic seagull. Human phase: rests on the sand and flies away when approached.
-    /// Hatchling phase: circles above the hatchling and dives at it (driven by SeagullFlock).
+    /// Kinematic herring gull with distinct behaviours and a procedural two-segment wing animation:
+    ///   Grounded  - stands, pecks, wings folded; flees when the human approaches
+    ///   Flying    - flaps / glides to a point (optionally lands there)
+    ///   Circling  - soaring loops around a moving centre (wings mostly gliding)
+    ///   Hovering  - hangs in the wind above a point: body up, quick shallow flaps (the attack warning)
+    ///   Diving    - wings tucked, fast stoop to a point, then pulls up
+    ///   Leaving   - climbs away over the sea
     /// </summary>
     public class Seagull : MonoBehaviour
     {
-        public enum Mode { Grounded, Flying, Circling, Diving }
+        public enum Mode { Grounded, Flying, Circling, Hovering, Diving, Leaving }
 
-        [SerializeField] private Transform wingL, wingR, body;
-        [SerializeField] private float cruiseSpeed = 5f;
-        [SerializeField] private float diveSpeed = 9f;
-        [SerializeField] private float turnRate = 140f;
-        [SerializeField] private float fleeRadius = 3.5f;
+        [SerializeField] private Transform body;
+        [SerializeField] private Transform wingLIn, wingLOut, wingRIn, wingROut;
         [SerializeField] private AudioSource voice;
+        [SerializeField] private float cruiseSpeed = 5f;
+        [SerializeField] private float diveSpeed = 7.5f;
+        [SerializeField] private float fleeRadius = 3.5f;
 
         public Mode State { get; private set; } = Mode.Grounded;
-        public bool IsHunting => State == Mode.Circling || State == Mode.Diving;
+        public Vector3 Velocity => _vel;
 
-        Vector3 _target;
-        Vector3 _vel;
-        Vector3 _landSpot;
-        float _flap, _nextCall, _timer;
-        Quaternion _wlRest, _wrRest;
+        Quaternion _rLIn, _rLOut, _rRIn, _rROut;
+        Vector3 _vel, _target, _landSpot, _home;
+        bool _landAfter;
         Transform _orbit;
-        float _orbitRadius, _orbitHeight, _orbitAngle;
-        Vector3 _diveTarget;
-        System.Action<Seagull> _onDiveEnd;
+        float _orbitR, _orbitH, _orbitAngle, _flapPhase, _flapAmp, _flapRate, _fold, _bodyPitch, _nextCall;
+        Action _onArrive;
 
         void Awake()
         {
-            if (wingL) _wlRest = wingL.localRotation;
-            if (wingR) _wrRest = wingR.localRotation;
-            _landSpot = transform.position;
-            _nextCall = Time.time + Random.Range(4f, 20f);
-            _orbitAngle = Random.value * 360f;
+            if (wingLIn) _rLIn = wingLIn.localRotation;
+            if (wingLOut) _rLOut = wingLOut.localRotation;
+            if (wingRIn) _rRIn = wingRIn.localRotation;
+            if (wingROut) _rROut = wingROut.localRotation;
+            _home = _landSpot = transform.position;
+            _orbitAngle = UnityEngine.Random.value * 360f;
+            _nextCall = Time.time + UnityEngine.Random.Range(5f, 20f);
         }
 
-        public void FlyTo(Vector3 point, bool landThere)
+        // ------------------------------------------------------------------ commands
+        public void FlyTo(Vector3 p, bool land, Action onArrive = null)
         {
+            if (State == Mode.Grounded) TakeOff();
             State = Mode.Flying;
-            _target = point;
-            if (landThere) _landSpot = point;
-            _timer = landThere ? 0 : -1;
+            _target = p;
+            _landAfter = land;
+            if (land) _landSpot = p;
+            _onArrive = onArrive;
         }
 
-        public void Hunt(Transform target, float radius, float height)
+        public void Circle(Transform center, float radius, float height)
         {
-            _orbit = target;
-            _orbitRadius = radius;
-            _orbitHeight = height;
-            if (State == Mode.Grounded) TakeOffBoost();
+            if (State == Mode.Grounded) TakeOff();
+            _orbit = center;
+            _orbitR = radius;
+            _orbitH = height;
+            if (center != null)
+            {
+                Vector3 d = transform.position - center.position;
+                _orbitAngle = Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg;
+            }
             State = Mode.Circling;
         }
 
-        public void Dive(Vector3 strikePoint, System.Action<Seagull> onEnd)
+        public void Hover(Vector3 p)
         {
+            _target = p;
+            State = Mode.Hovering;
+        }
+
+        public void Dive(Vector3 p, Action onArrive)
+        {
+            _target = p;
+            _onArrive = onArrive;
             State = Mode.Diving;
-            _diveTarget = strikePoint;
-            _onDiveEnd = onEnd;
-            Call(1f);
+            if (voice != null && SameShoreAssets.I.gullDive != null) voice.PlayOneShot(SameShoreAssets.I.gullDive, 1f);
         }
 
-        public void Call(float volume = 0.8f)
+        public void Leave(Vector3 seaward)
         {
-            if (voice == null) return;
-            voice.pitch = Random.Range(0.9f, 1.15f);
-            voice.PlayOneShot(SameShoreAssets.Pick(SameShoreAssets.I.gullCalls), volume);
+            State = Mode.Leaving;
+            _target = transform.position + seaward.normalized * 40f + Vector3.up * 15f;
         }
 
-        void TakeOffBoost()
+        public void ReturnHome()
         {
-            _vel = Vector3.up * 2.5f + transform.forward * 1.5f;
+            FlyTo(_home, true);
+        }
+
+        public void TeleportTo(Vector3 p)
+        {
+            transform.position = p;
+            _vel = Vector3.zero;
+        }
+
+        public void Call(float volume = 0.8f) => Play(SameShoreAssets.Pick(SameShoreAssets.I.gullCalls), volume);
+        public void Screech() => Play(SameShoreAssets.I.gullScreech, 1f);
+
+        void Play(AudioClip c, float v)
+        {
+            if (voice == null || c == null) return;
+            voice.pitch = UnityEngine.Random.Range(0.92f, 1.08f);
+            voice.PlayOneShot(c, v);
+        }
+
+        void TakeOff()
+        {
+            _vel = Vector3.up * 2.8f + transform.forward * 1.2f;
             if (voice != null && SameShoreAssets.I.gullFlap != null) voice.PlayOneShot(SameShoreAssets.I.gullFlap, 0.7f);
         }
 
+        // ------------------------------------------------------------------ update
         void Update()
         {
             float dt = Time.deltaTime;
             switch (State)
             {
-                case Mode.Grounded: Grounded(dt); break;
-                case Mode.Flying: Steer(_target, cruiseSpeed, dt); ArriveCheck(); break;
+                case Mode.Grounded:
+                    _vel = Vector3.zero;
+                    FleeFromHuman();
+                    break;
+                case Mode.Flying:
+                    Steer(_target, cruiseSpeed, 3f, dt);
+                    if ((transform.position - _target).magnitude < 0.5f) Arrive();
+                    break;
                 case Mode.Circling:
-                    if (_orbit == null) { FlyTo(_landSpot, true); break; }
-                    _orbitAngle += dt * cruiseSpeed / Mathf.Max(1f, _orbitRadius) * Mathf.Rad2Deg;
-                    Vector3 c = _orbit.position + Vector3.up * _orbitHeight;
-                    Vector3 p = c + Quaternion.Euler(0, _orbitAngle, 0) * Vector3.forward * _orbitRadius;
-                    Steer(p, cruiseSpeed, dt);
+                    if (_orbit == null) { ReturnHome(); break; }
+                    _orbitAngle += dt * cruiseSpeed * 0.8f / Mathf.Max(1f, _orbitR) * Mathf.Rad2Deg;
+                    Vector3 c = _orbit.position + Vector3.up * _orbitH;
+                    Steer(c + Quaternion.Euler(0, _orbitAngle, 0) * Vector3.forward * _orbitR, cruiseSpeed, 2.5f, dt);
+                    break;
+                case Mode.Hovering:
+                    Steer(_target, 2.5f, 4f, dt, true);
                     break;
                 case Mode.Diving:
-                    Steer(_diveTarget, diveSpeed, dt, 400f);
-                    if ((transform.position - _diveTarget).magnitude < 0.25f)
+                    Steer(_target, diveSpeed, 12f, dt);
+                    if ((transform.position - _target).magnitude < 0.2f)
                     {
+                        _vel = Vector3.up * 4.5f + Vector3.ProjectOnPlane(_vel, Vector3.up).normalized * 2.5f;
                         State = Mode.Circling;
-                        _vel = Vector3.up * 4f + _vel.normalized * 2f;
-                        var cb = _onDiveEnd;
-                        _onDiveEnd = null;
-                        cb?.Invoke(this);
+                        var cb = _onArrive;
+                        _onArrive = null;
+                        cb?.Invoke();
                     }
+                    break;
+                case Mode.Leaving:
+                    Steer(_target, cruiseSpeed * 1.2f, 2f, dt);
                     break;
             }
             Animate(dt);
-
-            if (Time.time > _nextCall)
+            if (Time.time > _nextCall && State != Mode.Diving)
             {
-                _nextCall = Time.time + Random.Range(6f, 22f);
-                Call(State == Mode.Grounded ? 0.5f : 0.8f);
+                _nextCall = Time.time + UnityEngine.Random.Range(6f, 18f);
+                Call(State == Mode.Grounded ? 0.45f : 0.75f);
             }
         }
 
-        void Grounded(float dt)
+        void FleeFromHuman()
         {
-            _vel = Vector3.zero;
-            // flee from the human
-            if (GameManager.Instance != null && GameManager.Instance.Current == GameState.Human && PlayerRig.Head != null)
+            var gm = GameManager.Instance;
+            if (gm == null || gm.Current != GameState.Human || PlayerRig.Head == null) return;
+            Vector3 away = transform.position - PlayerRig.Head.position;
+            away.y = 0;
+            if (away.magnitude > fleeRadius) return;
+            Vector3 dir = away.normalized + UnityEngine.Random.insideUnitSphere * 0.3f;
+            dir.y = 0;
+            Call();
+            FlyTo(transform.position + dir.normalized * 25f + Vector3.up * 8f, false, () =>
             {
-                Vector3 away = transform.position - PlayerRig.Head.position;
-                away.y = 0;
-                if (away.magnitude < fleeRadius)
-                {
-                    Vector3 dir = (away.normalized + Random.insideUnitSphere * 0.3f);
-                    dir.y = 0;
-                    FlyTo(transform.position + dir.normalized * 25f + Vector3.up * 7f, false);
-                    TakeOffBoost();
-                    Call();
-                    _timer = 0;
-                }
-            }
+                Vector3 back = _home + new Vector3(UnityEngine.Random.Range(-3f, 3f), 0, UnityEngine.Random.Range(-1f, 1f));
+                if (FootprintSystem.GroundHit(back + Vector3.up * 4f, out RaycastHit h)) back = h.point;
+                FlyTo(back, true);
+            });
         }
 
-        void ArriveCheck()
+        void Arrive()
         {
-            if ((transform.position - _target).magnitude > 0.6f) return;
-            if (_timer >= 0)
+            if (_landAfter)
             {
-                // landed
                 State = Mode.Grounded;
                 transform.position = _landSpot;
                 transform.rotation = Quaternion.Euler(0, transform.eulerAngles.y, 0);
             }
-            else
-            {
-                // fled: wander a bit then come back to land elsewhere near the water
-                Vector3 back = _landSpot + new Vector3(Random.Range(-4f, 4f), 0, Random.Range(-1.5f, 1.5f));
-                if (FootprintSystem.GroundHit(back + Vector3.up * 5f, out RaycastHit h)) back = h.point;
-                FlyTo(back, true);
-            }
+            var cb = _onArrive;
+            _onArrive = null;
+            cb?.Invoke();
         }
 
-        void Steer(Vector3 point, float speed, float dt, float turn = -1f)
+        void Steer(Vector3 point, float speed, float agility, float dt, bool hover = false)
         {
-            Vector3 desired = (point - transform.position);
-            float dist = desired.magnitude;
-            desired = desired.normalized * Mathf.Min(speed, dist * 2.5f + 0.5f);
-            _vel = Vector3.MoveTowards(_vel, desired, dt * (turn > 0 ? turn : turnRate) * 0.05f * speed);
+            Vector3 to = point - transform.position;
+            float dist = to.magnitude;
+            Vector3 desired = to.normalized * Mathf.Min(speed, dist * 2f + (hover ? 0f : 0.6f));
+            _vel = Vector3.Lerp(_vel, desired, 1 - Mathf.Exp(-agility * dt));
             transform.position += _vel * dt;
-            Vector3 look = _vel;
+            Vector3 look = hover ? (Vector3.ProjectOnPlane(point - transform.position, Vector3.up) + transform.forward * 0.5f) : _vel;
+            look.y *= hover ? 0 : 0.6f;
             if (look.sqrMagnitude > 0.01f)
             {
-                Quaternion q = Quaternion.LookRotation(look, Vector3.up);
-                float bank = Mathf.Clamp(Vector3.SignedAngle(transform.forward, look, Vector3.up) * 3f, -40f, 40f);
-                transform.rotation = Quaternion.Slerp(transform.rotation, q * Quaternion.Euler(0, 0, -bank), dt * 4f);
+                float bank = hover ? 0f : Mathf.Clamp(Vector3.SignedAngle(transform.forward, _vel, Vector3.up) * 2.5f, -45f, 45f);
+                Quaternion q = Quaternion.LookRotation(look, Vector3.up) * Quaternion.Euler(0, 0, -bank);
+                transform.rotation = Quaternion.Slerp(transform.rotation, q, 1 - Mathf.Exp(-5f * dt));
             }
         }
 
         void Animate(float dt)
         {
-            bool flying = State != Mode.Grounded;
-            float rate = State == Mode.Diving ? 0f : (_vel.y > 0.5f ? 9f : 5.5f);
-            _flap += dt * rate;
-            float a = flying ? (State == Mode.Diving ? -35f : Mathf.Sin(_flap) * 38f + 8f) : -70f; // folded when grounded
-            if (wingL) wingL.localRotation = Quaternion.AngleAxis(-a, Vector3.forward) * _wlRest;
-            if (wingR) wingR.localRotation = Quaternion.AngleAxis(a, Vector3.forward) * _wrRest;
-            if (body != null && !flying)
+            // targets per behaviour: flap amplitude/rate, wing fold, body pitch
+            float amp, rate, fold, pitch;
+            switch (State)
             {
-                float peck = Mathf.Max(0, Mathf.Sin(Time.time * 0.8f + _orbitAngle)) ;
-                body.localRotation = Quaternion.Euler(peck * peck * 25f, 0, 0);
+                case Mode.Grounded: amp = 0; rate = 0; fold = 1f; pitch = 0; break;
+                case Mode.Hovering: amp = 22; rate = 9f; fold = 0.15f; pitch = -28f; break;
+                case Mode.Diving: amp = 0; rate = 0; fold = 0.75f; pitch = 0; break;
+                case Mode.Circling:
+                    // soaring: glide with occasional flaps
+                    bool glide = Mathf.Sin(Time.time * 0.7f + _orbitAngle * 0.01f) > -0.2f;
+                    amp = glide ? 4 : 30; rate = glide ? 1.5f : 6f; fold = 0f; pitch = 0; break;
+                default:
+                    bool climbing = _vel.y > 0.6f;
+                    amp = climbing ? 40 : 30; rate = climbing ? 7.5f : 5.5f; fold = 0f; pitch = 0; break;
             }
-            else if (body != null) body.localRotation = Quaternion.identity;
+            _flapAmp = Mathf.Lerp(_flapAmp, amp, 1 - Mathf.Exp(-6f * dt));
+            _flapRate = Mathf.Lerp(_flapRate, rate, 1 - Mathf.Exp(-6f * dt));
+            _fold = Mathf.Lerp(_fold, fold, 1 - Mathf.Exp(-5f * dt));
+            _bodyPitch = Mathf.Lerp(_bodyPitch, pitch, 1 - Mathf.Exp(-4f * dt));
+            _flapPhase += dt * _flapRate * Mathf.PI * 2f;
+
+            float s = Mathf.Sin(_flapPhase);
+            float inner = s * _flapAmp + 6f;                       // dihedral
+            float outer = Mathf.Sin(_flapPhase - 0.9f) * _flapAmp * 0.7f;
+            // folding: inner wing swept up/back, outer wing folded under it
+            float foldIn = _fold * 70f, foldOut = _fold * 150f;
+            Wing(wingLIn, _rLIn, inner + foldIn * 0.3f, foldIn, -1);
+            Wing(wingRIn, _rRIn, inner + foldIn * 0.3f, foldIn, 1);
+            Wing(wingLOut, _rLOut, outer, foldOut, -1);
+            Wing(wingROut, _rROut, outer, foldOut, 1);
+            if (body != null)
+            {
+                float peck = State == Mode.Grounded ? Mathf.Pow(Mathf.Max(0, Mathf.Sin(Time.time * 0.8f + _orbitAngle)), 6) * 30f : 0f;
+                body.localRotation = Quaternion.Euler(_bodyPitch + peck, 0, 0);
+            }
+        }
+
+        static void Wing(Transform t, Quaternion rest, float flapDeg, float sweepDeg, int side)
+        {
+            if (t == null) return;
+            // flap around the bird's long axis (local Z), sweep back around the vertical axis (local Y)
+            t.localRotation = Quaternion.AngleAxis(sweepDeg * side, Vector3.up) * Quaternion.AngleAxis(flapDeg * side, Vector3.forward) * rest;
         }
     }
 }

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using Oculus.Interaction;
 using Oculus.Interaction.HandGrab;
@@ -207,6 +207,33 @@ namespace SameShore.EditorTools
             M["Gull_Grey"] = LitMat("Gull_Grey", new Color(0.45f, 0.49f, 0.53f), 0.15f);
             M["Gull_Black"] = LitMat("Gull_Black", new Color(0.03f, 0.03f, 0.035f), 0.3f);
             M["Gull_Beak"] = LitMat("Gull_Beak", new Color(0.85f, 0.65f, 0.2f), 0.4f);
+            M["Gull_BeakSpot"] = LitMat("Gull_BeakSpot", new Color(0.75f, 0.12f, 0.06f), 0.4f);
+            M["Gull_Eye"] = LitMat("Gull_Eye", new Color(0.9f, 0.85f, 0.4f), 0.9f);
+            M["Gull_Legs"] = LitMat("Gull_Legs", new Color(0.82f, 0.58f, 0.55f), 0.3f);
+            M["Hatchling_Belly"] = LitMat("Hatchling_Belly", new Color(0.42f, 0.38f, 0.3f), 0.4f);
+            M["Hatchling_Beak"] = LitMat("Hatchling_Beak", new Color(0.3f, 0.28f, 0.22f), 0.55f);
+            M["Avatar_Skin"] = LitMat("Avatar_Skin", new Color(0.72f, 0.55f, 0.44f), 0.35f);
+            M["Avatar_Shirt"] = LitMat("Avatar_Shirt", new Color(0.12f, 0.3f, 0.34f), 0.15f);
+            M["Avatar_Shorts"] = LitMat("Avatar_Shorts", new Color(0.18f, 0.2f, 0.28f), 0.15f);
+            M["Avatar_Shoe"] = LitMat("Avatar_Shoe", new Color(0.78f, 0.78f, 0.74f), 0.3f);
+            M["Avatar_Sole"] = LitMat("Avatar_Sole", new Color(0.12f, 0.12f, 0.12f), 0.2f);
+            var pebble = LitMat("Pebble", new Color(0.55f, 0.5f, 0.45f), 0.25f, Tex($"{PH}/sand_rocks_small_01/sand_rocks_small_01_diff_1k.jpg"));
+            pebble.enableInstancing = true;
+            M["Pebble"] = pebble;
+            M["LightCone"] = SaveMat("FlashlightCone", Shader.Find("SameShore/LightCone"));
+            var decal = SaveMat("GroundDecal", Shader.Find("Universal Render Pipeline/Unlit"));
+            decal.SetColor("_BaseColor", new Color(0, 0, 0, 0.5f));
+            MakeTransparent(decal);
+            M["GroundDecal"] = decal;
+            var ring = SaveMat("WarningRing", Shader.Find("SameShore/SkyBillboard"));
+            ring.SetColor("_Color", new Color(1f, 0.35f, 0.15f, 1f));
+            M["WarningRing"] = ring;
+            var waveWater = LitMat("WaveWater", new Color(0.05f, 0.13f, 0.16f, 0.82f), 0.95f);
+            MakeTransparent(waveWater, true);
+            M["WaveWater"] = waveWater;
+            var waveFoam = LitMat("WaveFoam", new Color(0.75f, 0.82f, 0.86f, 0.9f), 0.6f);
+            MakeTransparent(waveFoam, true);
+            M["WaveFoam"] = waveFoam;
 
             var pet = LitMat("Trash_PET", new Color(0.78f, 0.88f, 0.92f, 0.38f), 0.92f);
             MakeTransparent(pet, true);
@@ -309,6 +336,24 @@ namespace SameShore.EditorTools
             a.heartbeat = C("heartbeat_loop");
             a.success = C("success_chime");
             a.transition = C("transition_swell");
+            a.turtleBreath = C("turtle_breath_loop");
+            a.nestScratching = C("nest_scratching");
+            a.swashWash = C("swash_wash");
+            a.waveCrashBig = C("wave_crash_big");
+            a.underwater = C("underwater_loop");
+            a.objectiveDone = C("objective_done");
+            a.objectiveLeft = C("objective_left");
+            a.uiTick = C("ui_tick");
+            a.lightHum = C("light_hum_loop");
+            a.gullScreech = C("gull_screech");
+            a.gullDive = C("gull_dive_whoosh");
+            a.endingPad = C("ending_pad");
+            a.lightCone = M["LightCone"];
+            a.groundDecal = M["GroundDecal"];
+            a.warningRing = M["WarningRing"];
+            a.turtleTrack = SavePng("TurtleTrack", ProceduralArt.TurtleTrack(), true, true);
+            a.pebbles = AssetDatabase.LoadAllAssetsAtPath(Art + "/Models/Pebbles.fbx").OfType<Mesh>().ToArray();
+            a.pebble = M["Pebble"];
             EditorUtility.SetDirty(a);
             foreach (string guid in AssetDatabase.FindAssets("t:AudioClip", new[] { Root + "/Audio" }))
             {
@@ -442,7 +487,7 @@ namespace SameShore.EditorTools
             lamp.transform.position = nest.position + Vector3.up * 0.7f;
             lamp.type = LightType.Point;
             lamp.color = new Color(1f, 0.45f, 0.12f);
-            lamp.intensity = 0.18f;
+            lamp.intensity = 0.08f;
             lamp.range = 1.8f;
             lamp.shadows = LightShadows.None;
 
@@ -461,6 +506,25 @@ namespace SameShore.EditorTools
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.color = new Color(0.12f, 0.1f, 0.08f);
             tmp.text = "<b>SEA TURTLE NEST</b>\n<size=70%>Please do not disturb.\nKeep the beach dark and clean.</size>";
+
+            // excavated sand mound where the clutch was laid
+            var mound = Model(Art + "/Models/NestMound.fbx", nest, "NestMound");
+            if (mound != null)
+            {
+                Remap(mound, new Dictionary<string, Material>(), M["SandFill"]);
+                // follow the slope of the beach so no edge sticks out of the sand
+                mound.transform.rotation = Quaternion.FromToRotation(Vector3.up, Normal(nest.position.x, nest.position.z)) * mound.transform.rotation;
+                mound.transform.localScale = new Vector3(0.8f, 0.55f, 0.8f);
+                mound.transform.position = nest.position - Vector3.up * 0.012f;
+                foreach (var mrd in mound.GetComponentsInChildren<MeshRenderer>()) mrd.shadowCastingMode = ShadowCastingMode.Off;
+            }
+            var scratch = new GameObject("NestScratching").AddComponent<AudioSource>();
+            scratch.transform.SetParent(nest, false);
+            scratch.transform.position = nest.position + Vector3.up * 0.05f;
+            scratch.spatialBlend = 1f;
+            scratch.minDistance = 0.6f;
+            scratch.maxDistance = 8f;
+            scratch.playOnAwake = false;
 
             // a few eggshell fragments
             for (int i = 0; i < 6; i++)
@@ -532,6 +596,7 @@ namespace SameShore.EditorTools
             public Transform chair, flashlight, hole;
             public List<GameObject> buckets = new List<GameObject>();
             public SandHole sandHole;
+            public Transform safeZone, bin;
         }
 
         static Props PlaceProps()
@@ -546,6 +611,26 @@ namespace SameShore.EditorTools
             chair.transform.rotation = Quaternion.Euler(-90, 30, 0);
             props.chair = chair.transform;
             AddFeedback(chair);
+            var chairRb = chair.GetComponent<Rigidbody>();
+            chairRb.mass = 3.5f;
+            chairRb.linearDamping = 0.6f;
+            chairRb.angularDamping = 2.5f;
+            chairRb.interpolation = RigidbodyInterpolation.Interpolate;
+            chairRb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+            foreach (var mc in chair.GetComponentsInChildren<MeshCollider>()) mc.convex = true;
+            GetOrAdd<BeachChairMarker>(chair);
+            // where to leave it: beside the dunes, out of the hatchlings' way
+            var safe = Child(_env, "ChairSafeZone").transform;
+            safe.position = L(-5.6f, 13f);
+            var ringDecal = Prim(PrimitiveType.Quad, "SafeZoneMark", safe, safe.position + Vector3.up * 0.01f, Vector3.one * 1.3f, M["GroundDecal"], false, Quaternion.Euler(90, 0, 0));
+            string ringPath = Gen + "/Materials/SafeZoneRing.mat";
+            AssetDatabase.DeleteAsset(ringPath);
+            var ringMat = new Material(M["GroundDecal"]);
+            ringMat.SetTexture("_BaseMap", SavePng("SafeZoneRing", ProceduralArt.Ring(), true, true));
+            ringMat.SetColor("_BaseColor", new Color(0.85f, 0.8f, 0.6f, 0.35f));
+            AssetDatabase.CreateAsset(ringMat, ringPath);
+            ringDecal.GetComponent<MeshRenderer>().sharedMaterial = ringMat;
+            props.safeZone = safe;
 
             // flashlight: lying lit on the sand, its beam across the hatchlings' path
             GameObject fl = Find("Flashlight");
@@ -576,6 +661,17 @@ namespace SameShore.EditorTools
             }
             Set(fl.GetComponent<Flashlight>(), "startOn", true);
             AddFeedback(fl);
+            // held like a real torch: beam along the controller's pointing direction
+            var grip = GetOrAdd<GripAlignment>(fl);
+            Set(grip, "grabbable", fl.GetComponent<Grabbable>());
+            GetOrAdd<LightConeVisual>(beamT.gameObject);
+            var click = GetOrAdd<AudioSource>(fl);
+            click.clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{Root}/Audio/flashlight_click.wav");
+            click.playOnAwake = false;
+            click.spatialBlend = 1f;
+            click.minDistance = 0.5f;
+            click.maxDistance = 8f;
+            Set(fl.GetComponent<Flashlight>(), "clickSound", click);
 
             // hole (teammate's Hole object becomes the real, fillable hole)
             GameObject hole = Find("Hole");
@@ -620,6 +716,7 @@ namespace SameShore.EditorTools
                 var sb = GetOrAdd<SandBucket>(b);
                 Set(sb, "sandFill", fill.transform);
                 Set(sb, "mouthHeight", 0.34f);
+                Set(sb, "pourAngle", 80f);
                 props.buckets.Add(b);
             }
 
@@ -658,6 +755,19 @@ namespace SameShore.EditorTools
             binTrigger.size = new Vector3(0.9f, 1.8f, 0.9f);
             binTrigger.isTrigger = true;
             binTrigger.gameObject.AddComponent<TrashBin>();
+            props.bin = binTrigger.transform;
+            var label = new GameObject("BinLabel");
+            label.transform.SetParent(_env, false);
+            label.transform.position = bp + Vector3.up * 1.15f;
+            Vector3 toPath = L(0, 9f) - bp;
+            toPath.y = 0;
+            label.transform.rotation = Quaternion.LookRotation(-toPath.normalized, Vector3.up);
+            var lt = label.AddComponent<TextMeshPro>();
+            lt.rectTransform.sizeDelta = new Vector2(1.2f, 0.4f);
+            lt.fontSize = 1.6f;
+            lt.alignment = TextAlignmentOptions.Center;
+            lt.color = new Color(0.75f, 0.95f, 0.8f);
+            lt.text = "<b>PLASTIC & LITTER</b>";
             return props;
         }
 
@@ -691,7 +801,7 @@ namespace SameShore.EditorTools
             var rb = root.AddComponent<Rigidbody>();
             rb.mass = mass;
             rb.linearDamping = isBag ? 3f : 0.2f;
-            rb.angularDamping = isBag ? 3f : 0.4f;
+            rb.angularDamping = isBag ? 3f : lying ? 3f : 0.6f;
             rb.interpolation = RigidbodyInterpolation.Interpolate;
             rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
 
@@ -938,7 +1048,7 @@ namespace SameShore.EditorTools
         {
             var root = Child(_env, "Seagulls").transform;
             var list = new List<Seagull>();
-            foreach (var (dx, d, yaw) in new[] { (4f, 1.6f, 200f), (5.3f, 1.1f, 160f), (-3.2f, 2.7f, 120f) })
+            foreach (var (dx, d, yaw) in new[] { (4f, 1.6f, 200f), (5.3f, 1.1f, 160f), (-3.2f, 2.7f, 120f), (13.5f, 0.6f, 230f) })
             {
                 var g = new GameObject("Seagull");
                 g.transform.SetParent(root, false);
@@ -949,8 +1059,10 @@ namespace SameShore.EditorTools
                 Remap(model, M);
                 OrientByChild(model, "Head");
                 // wing pivots aligned with the bird so the flap axis is its long axis
-                Transform wl = FindDeep(model.transform, "WingL"), wr = FindDeep(model.transform, "WingR");
-                Transform pl = Pivot(bodyPivot, wl), pr = Pivot(bodyPivot, wr);
+                Transform pli = Pivot(bodyPivot, FindDeep(model.transform, "WingL_In"));
+                Transform pri = Pivot(bodyPivot, FindDeep(model.transform, "WingR_In"));
+                Transform plo = Pivot(pli, FindDeep(model.transform, "WingL_Out"));
+                Transform pro = Pivot(pri, FindDeep(model.transform, "WingR_Out"));
                 var voice = g.AddComponent<AudioSource>();
                 voice.spatialBlend = 1;
                 voice.minDistance = 1.5f;
@@ -958,8 +1070,11 @@ namespace SameShore.EditorTools
                 voice.rolloffMode = AudioRolloffMode.Logarithmic;
                 voice.dopplerLevel = 0;
                 var s = g.AddComponent<Seagull>();
-                Set(s, "wingL", pl);
-                Set(s, "wingR", pr);
+                Set(s, "wingLIn", pli);
+                Set(s, "wingLOut", plo);
+                Set(s, "wingRIn", pri);
+                Set(s, "wingROut", pro);
+                if (list.Count == 3) g.name = "HunterGull";
                 Set(s, "body", bodyPivot);
                 Set(s, "voice", voice);
                 list.Add(s);
@@ -1129,7 +1244,9 @@ namespace SameShore.EditorTools
             foreach (Transform old in body.transform.Cast<Transform>().ToArray())
                 if (old.name == "HatchlingModel") Object.DestroyImmediate(old.gameObject);
             var avatarRoot = Child(body.transform, "HatchlingModel");
-            avatarRoot.transform.localPosition = new Vector3(0, 0, -0.03f);
+            // the eyes (camera) sit above the neck: shell below/behind, front flippers at the lower edge of the view
+            avatarRoot.transform.localPosition = new Vector3(0, 0, 0.004f);
+            avatarRoot.transform.localScale = Vector3.one * 1.25f;
             var model = Model(Art + "/Models/Hatchling.fbx", avatarRoot.transform, "Mesh");
             Remap(model, M);
             OrientByChild(model, "Head");
@@ -1177,6 +1294,8 @@ namespace SameShore.EditorTools
             }
             var nestCtl = nest.gameObject.AddComponent<NestController>();
             Set(nestCtl, "siblings", sibs.ToArray());
+            Set(nestCtl, "mound", FindDeep(nest, "NestMound"));
+            Set(nestCtl, "scratchSource", FindDeep(nest, "NestScratching").GetComponent<AudioSource>());
 
             // ---- phase switcher (teammate's component on the GameManager object)
             var switcher = Object.FindFirstObjectByType<PlayerPhaseSwitcher>();
@@ -1205,9 +1324,31 @@ namespace SameShore.EditorTools
             Set(beach, "hole", props.sandHole);
             Set(beach, "chair", props.chair);
 
-            var flock = systems.gameObject.AddComponent<SeagullFlock>();
-            Set(flock, "gulls", gulls.Cast<Object>().ToArray());
-            Set(flock, "turtle", turtle);
+            var hunt = systems.gameObject.AddComponent<GullHunt>();
+            Set(hunt, "hunter", gulls[gulls.Length - 1]);
+            Set(hunt, "turtle", turtle);
+            Set(hunt, "sea", seaPoint);
+
+            var journey = systems.gameObject.AddComponent<TurtleJourney>();
+            Set(journey, "turtle", turtle);
+            Set(journey, "nest", nest);
+            Set(journey, "sea", seaPoint);
+            Set(journey, "gull", hunt);
+
+            var fx = body.AddComponent<TurtleFX>();
+            Set(fx, "turtle", turtle);
+            Set(fx, "flipperL", avatar.flipperFL);
+            Set(fx, "flipperR", avatar.flipperFR);
+            var fxSo = new SerializedObject(fx);
+            fxSo.FindProperty("pebbleArea").rectValue = new Rect(cx - 7f, zs - 20f, 14f, 21f);
+            fxSo.ApplyModifiedPropertiesWithoutUndo();
+
+            var objectives = systems.gameObject.AddComponent<ObjectiveTracker>();
+            var finalWave = systems.gameObject.AddComponent<FinalWave>();
+            Set(finalWave, "waterMaterial", M["WaveWater"]);
+            Set(finalWave, "foamMaterial", M["WaveFoam"]);
+
+            BuildHumanBody(systems);
 
             var fader = systems.gameObject.AddComponent<ScreenFader>();
             // Editor without a headset: mouse/keyboard testing (inactive on Quest / with Link)
@@ -1227,9 +1368,96 @@ namespace SameShore.EditorTools
             Set(director, "perception", perception);
             Set(director, "ambient", audio);
             Set(director, "beach", beach);
-            Set(director, "gulls", flock);
+            Set(director, "gull", hunt);
+            Set(director, "journey", journey);
+            Set(director, "objectives", objectives);
+            Set(director, "finalWave", finalWave);
+            Set(director, "nest", nestCtl);
+            Set(director, "turtleFX", fx);
             Set(director, "humanStart", humanStart);
             Set(director, "menuSpot", humanStart);
+            Set(director, "sea", seaPoint);
+            Set(director, "chairSafeZone", props.safeZone);
+            Set(director, "litterBin", props.bin);
+        }
+
+        /// <summary>First-person body: one pivot per segment at the proximal joint, mesh aligned to +Y.</summary>
+        static void BuildHumanBody(Transform systems)
+        {
+            var src = Model(Art + "/Models/HumanBody.fbx", null, "~HumanBodySource");
+            Remap(src, M);
+            var root = Child(systems, "HumanBody").transform;
+            var avatar = root.gameObject.AddComponent<HumanAvatar>();
+            Transform Seg(string part, string name, bool foot = false) => Segment(root, src, part, name, foot);
+            avatar.torso = Seg("Torso", "Torso");
+            avatar.upperArmL = Seg("UpperArm", "UpperArmL");
+            avatar.forearmL = Seg("Forearm", "ForearmL");
+            avatar.handL = Seg("Hand", "HandL");
+            avatar.upperArmR = Seg("UpperArm", "UpperArmR");
+            avatar.forearmR = Seg("Forearm", "ForearmR");
+            avatar.handR = Seg("Hand", "HandR");
+            avatar.thighL = Seg("Thigh", "ThighL");
+            avatar.shinL = Seg("Shin", "ShinL");
+            avatar.footL = Seg("Foot", "FootL", true);
+            avatar.thighR = Seg("Thigh", "ThighR");
+            avatar.shinR = Seg("Shin", "ShinR");
+            avatar.footR = Seg("Foot", "FootR", true);
+            Object.DestroyImmediate(src);
+            EditorUtility.SetDirty(avatar);
+        }
+
+        static Transform Segment(Transform parent, GameObject model, string part, string name, bool foot)
+        {
+            Transform srcT = FindDeep(model.transform, part);
+            var pivot = new GameObject(name).transform;
+            pivot.SetParent(parent, false);
+            if (srcT == null) { Debug.LogWarning("[SameShore] body part missing: " + part); return pivot; }
+            var mf = srcT.GetComponent<MeshFilter>();
+            var mr = srcT.GetComponent<MeshRenderer>();
+            var vis = new GameObject("Mesh").transform;
+            vis.SetParent(pivot, false);
+            vis.gameObject.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+            var r = vis.gameObject.AddComponent<MeshRenderer>();
+            r.sharedMaterials = mr.sharedMaterials;
+            r.shadowCastingMode = ShadowCastingMode.On;
+            // the part's own import rotation/scale relative to the model root
+            Quaternion rot = Quaternion.Inverse(model.transform.rotation) * srcT.rotation;
+            Vector3 ls = srcT.lossyScale, ms = model.transform.lossyScale;
+            Vector3 scl = new Vector3(ls.x / ms.x, ls.y / ms.y, ls.z / ms.z);
+            var m = Matrix4x4.TRS(Vector3.zero, rot, scl);
+            Vector3 mn = Vector3.one * 1e9f, mx = Vector3.one * -1e9f;
+            foreach (var v in mf.sharedMesh.vertices) { Vector3 w = m.MultiplyPoint3x4(v); mn = Vector3.Min(mn, w); mx = Vector3.Max(mx, w); }
+            Vector3 ext = mx - mn;
+            int k = ext.x >= ext.y && ext.x >= ext.z ? 0 : ext.y >= ext.z ? 1 : 2;
+            Vector3 a = Vector3.zero;
+            a[k] = Mathf.Abs(mx[k]) >= Mathf.Abs(mn[k]) ? 1 : -1;
+            Quaternion align;
+            if (foot)
+            {
+                // long axis forward (+Z); the axis that extends below the ankle points down (-Y)
+                int dk = -1; float best = 0;
+                for (int i = 0; i < 3; i++)
+                {
+                    if (i == k) continue;
+                    float below = Mathf.Max(-mn[i], mx[i]);
+                    if (below > best) { best = below; dk = i; }
+                }
+                Vector3 down = Vector3.zero;
+                if (dk >= 0) down[dk] = -mn[dk] > mx[dk] ? 1 : -1; else down = Vector3.down;
+                align = Quaternion.Inverse(Quaternion.LookRotation(a, -down));
+            }
+            else
+            {
+                int bk = -1; float best = -1;
+                for (int i = 0; i < 3; i++) if (i != k && ext[i] > best) { best = ext[i]; bk = i; }
+                Vector3 b = Vector3.zero;
+                b[bk] = 1;
+                align = Quaternion.Inverse(Quaternion.LookRotation(Vector3.Cross(b, a), a));
+            }
+            vis.localRotation = align * rot;
+            vis.localScale = scl;
+            Debug.Log($"[SameShore] body segment {name}: long axis {a}, extent {ext}");
+            return pivot;
         }
 
         static void WireAvatar(HatchlingAvatar av, GameObject model)
@@ -1300,7 +1528,7 @@ namespace SameShore.EditorTools
         {
             var p = Profile("HatchlingView");
             var ca = Add<ColorAdjustments>(p);
-            ca.saturation.Override(22f);
+            ca.saturation.Override(12f);
             ca.contrast.Override(12f);
             ca.postExposure.Override(0.6f);
             ca.hueShift.Override(-5f);
@@ -1310,7 +1538,7 @@ namespace SameShore.EditorTools
             mix.blueOutBlueIn.Override(104f);
             mix.greenOutBlueIn.Override(5f);
             var sm = Add<SplitToning>(p);
-            sm.shadows.Override(new Color(0.46f, 0.44f, 0.58f));
+            sm.shadows.Override(new Color(0.47f, 0.48f, 0.54f));
             sm.highlights.Override(new Color(0.55f, 0.62f, 0.56f));
             sm.balance.Override(-30f);
             var tm = Add<Tonemapping>(p);

@@ -19,6 +19,33 @@ rellenar el hoyo, mover la silla) es exactamente lo que la tortuga encuentra des
    Para un build autónomo, usa el perfil *Meta Quest* (Android) y *Build And Run*.
 4. **Sin visor:** pulsa Play en el Editor. El **modo Desktop Testing** se activa solo (ver abajo).
 
+## Rediseño narrativo (rama actual)
+
+- **Acto I, humano:**
+  - Intro en negro con subtítulos, y la playa aparece poco a poco.
+  - Objetivos en un Canvas World Space arriba a la izquierda (`ObjectiveTracker` / `ObjectiveHUD`), con un marcador espacial y una flecha hacia el objetivo actual.
+  - Objetivos: linterna, plástico, hoyo, silla y nido.
+  - Se pueden dejar objetivos sin hacer: quedan marcados como "left behind".
+  - Cuerpo de tres puntos con IK (`HumanAvatar`).
+  - La linterna se sostiene orientada como en la mano (`GripAlignment`) y su cono de luz es visible.
+  - Silla con física mejorada y una zona segura señalizada.
+- **Nido:** se oye la arena moverse y sale una cría. Aparece una elección: "Go back" o "Become the hatchling".
+- **Acto II, tortuga:**
+  - Transición con respiración, fundido y el texto "One beach. A completely different world.". La cría sale de la arena y "abre los ojos".
+  - Objetivos de la tortuga en "YOUR JOURNEY".
+  - Rastro de aletas, nubes de arena, piedrecitas a escala y un zumbido mientras tira la luz artificial.
+  - Gaviota rediseñada (`GullHunt`): sombra, círculo de aviso y picado. Se esquiva saliendo del círculo o a cubierto. Si te atrapa dos veces, vuelves al punto de control.
+- **Final (`FinalWave`):** una ola cubre la cámara y pasa a un ambiente submarino. Después, "Great Job" con las consecuencias de lo que hizo el humano y "Same shore. Different lives. Your actions matter.".
+- **Menú de pausa:** botón Menú en el mando, o Esc/P en escritorio. Permite reiniciar la fase o volver al último punto de control.
+- **Pruebas en Play Mode con entrada simulada** (`Tools/Unity/run_batch.ps1 -Mode clean|dirty|xr`). Resultados de la última ejecución:
+  - `clean`: 34/34.
+  - `dirty`: 13/13 (antes del último ajuste del montículo y de la prueba).
+  - `xr`: 7/7.
+- **Recursos nuevos:**
+  - Modelos con `Tools/Blender/make_assets_v2.py`.
+  - Sonidos con `Tools/Audio/synth_audio_v2.py`.
+  - Son propios y no hay recursos de terceros nuevos.
+
 ## Modo Desktop Testing (Editor sin Meta Quest)
 
 Se activa automáticamente al pulsar Play en el Editor si no hay ningún dispositivo XR funcionando. Con

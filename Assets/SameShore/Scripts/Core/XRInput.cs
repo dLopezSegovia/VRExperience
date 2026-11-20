@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
@@ -63,7 +63,7 @@ namespace SameShore
 #endif
         }
 
-        public enum KeyId { Space, Enter, F, G, R, M, E, Digit1, Digit2, Digit3 }
+        public enum KeyId { Space, Enter, F, G, R, M, E, H, P, Escape, Digit1, Digit2, Digit3 }
 
 #if ENABLE_INPUT_SYSTEM
         static UnityEngine.InputSystem.Controls.KeyControl Key(Keyboard kb, KeyId k)
@@ -77,6 +77,9 @@ namespace SameShore
                 case KeyId.R: return kb.rKey;
                 case KeyId.M: return kb.mKey;
                 case KeyId.E: return kb.eKey;
+                case KeyId.H: return kb.hKey;
+                case KeyId.P: return kb.pKey;
+                case KeyId.Escape: return kb.escapeKey;
                 case KeyId.Digit1: return kb.digit1Key;
                 case KeyId.Digit2: return kb.digit2Key;
                 default: return kb.digit3Key;

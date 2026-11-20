@@ -41,6 +41,13 @@ namespace SameShore
             Apply(Alpha);
         }
 
+        /// <summary>Fade colour (black by default; deep teal under the final wave).</summary>
+        public void SetColor(Color c)
+        {
+            color = c;
+            Apply(Alpha);
+        }
+
         public void SetImmediate(float a)
         {
             EnsureSphere();

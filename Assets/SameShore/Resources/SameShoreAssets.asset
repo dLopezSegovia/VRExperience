@@ -41,3 +41,27 @@ MonoBehaviour:
   heartbeat: {fileID: 8300000, guid: de33d4fc4760eeb46951317d773159c9, type: 3}
   success: {fileID: 8300000, guid: 65ebc92d6a1b8b142aa9f76b70e3d7e5, type: 3}
   transition: {fileID: 8300000, guid: 208b14e5db39d1f42a65f3ba14c94e4d, type: 3}
+  turtleBreath: {fileID: 8300000, guid: ef2dc217258fa544691e5585a7b117f7, type: 3}
+  nestScratching: {fileID: 8300000, guid: 1e5ecad82af362a48a1f6c6fd729ea3d, type: 3}
+  swashWash: {fileID: 8300000, guid: 821bc688beb24ea4c83ad12a3724c1ec, type: 3}
+  waveCrashBig: {fileID: 8300000, guid: 252938ad6c7d91142b07a837ddcb5dd3, type: 3}
+  underwater: {fileID: 8300000, guid: 194004181658efb42bb13e5e9ed7f625, type: 3}
+  objectiveDone: {fileID: 8300000, guid: df330b91834f4ff4dbdabb9bb12639a4, type: 3}
+  objectiveLeft: {fileID: 8300000, guid: 742fd4353ab90fd4b8e53d63deda22df, type: 3}
+  uiTick: {fileID: 8300000, guid: f4b642eeb44c89d498e1122e155223f8, type: 3}
+  lightHum: {fileID: 8300000, guid: a3ca18acf5f13014089470f4c793d48c, type: 3}
+  gullScreech: {fileID: 8300000, guid: b360338d2dfa64f40951cf5a8e4267c5, type: 3}
+  gullDive: {fileID: 8300000, guid: 8d9d81961a5401b40893b29834be08c6, type: 3}
+  endingPad: {fileID: 8300000, guid: de300f27279eb4a46829d54c9638f069, type: 3}
+  lightCone: {fileID: 2100000, guid: 049bca3efe45e50418b0fa5b06e9404b, type: 2}
+  groundDecal: {fileID: 2100000, guid: 9264540c85a90f14da9ef16d1e5bcc0d, type: 2}
+  warningRing: {fileID: 2100000, guid: 428a1353cf448694ca3d63c4f147528f, type: 2}
+  turtleTrack: {fileID: 2800000, guid: 403b11a700e4ec744b43cdd370595923, type: 3}
+  pebbles:
+  - {fileID: -5441580479213517041, guid: 09060ac764164154087e1301536f09af, type: 3}
+  - {fileID: 836757651170989160, guid: 09060ac764164154087e1301536f09af, type: 3}
+  - {fileID: 2528893525424972455, guid: 09060ac764164154087e1301536f09af, type: 3}
+  - {fileID: 6963908502401141318, guid: 09060ac764164154087e1301536f09af, type: 3}
+  - {fileID: 7867647767626272670, guid: 09060ac764164154087e1301536f09af, type: 3}
+  - {fileID: -8985951710949640816, guid: 09060ac764164154087e1301536f09af, type: 3}
+  pebble: {fileID: 2100000, guid: a3a2827f998ace54ca20d24dd9388af8, type: 2}

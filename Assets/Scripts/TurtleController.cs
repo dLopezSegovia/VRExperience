@@ -78,6 +78,10 @@ public class TurtleController : MonoBehaviour
 
     public event Action ReachedGoal;
     public event Action<string> Message;
+    /// <summary>First frame inside a zone (hole, plastic bag, footprints...).</summary>
+    public event Action<TurtleZone> ZoneEntered;
+    /// <summary>Ran into something solid (litter, chair, rock...). Throttled.</summary>
+    public event Action<Collider> Bumped;
 
     private static readonly Collider[] Buffer = new Collider[16];
 
@@ -96,6 +100,9 @@ public class TurtleController : MonoBehaviour
     private int _lowProgressStrokes;
     private float _lastStuckMessage = -99f;
     private readonly System.Collections.Generic.HashSet<TurtleZone> _announced = new System.Collections.Generic.HashSet<TurtleZone>();
+    private readonly System.Collections.Generic.HashSet<TurtleZone> _inside = new System.Collections.Generic.HashSet<TurtleZone>();
+    private readonly System.Collections.Generic.List<TurtleZone> _insideNow = new System.Collections.Generic.List<TurtleZone>();
+    private float _lastBump;
 
     private void Awake()
     {
@@ -116,6 +123,16 @@ public class TurtleController : MonoBehaviour
         _stunnedUntil = 0f;
         _trapTime = 0f;
         _announced.Clear();
+        _inside.Clear();
+        enabled = true;
+    }
+
+    /// <summary>Continue after a pause/respawn without resetting the run statistics.</summary>
+    public void Resume()
+    {
+        _strokeTime = _strokeLen = 1f;
+        _vertical = 0f;
+        _stunnedUntil = 0f;
         enabled = true;
     }
 
@@ -264,6 +281,7 @@ public class TurtleController : MonoBehaviour
     {
         _speedMultiplier = 1f;
         bool inTrap = false;
+        _insideNow.Clear();
         Vector3 center = transform.position + Vector3.up * 0.03f;
         int count = Physics.OverlapSphereNonAlloc(center, zoneProbeRadius, Buffer, ~0, QueryTriggerInteraction.Collide);
         for (int i = 0; i < count; i++)
@@ -275,12 +293,17 @@ public class TurtleController : MonoBehaviour
                 ReachGoal();
                 return;
             }
+            _insideNow.Add(zone);
+            if (!_inside.Contains(zone)) ZoneEntered?.Invoke(zone);
             if (zone.Type == TurtleZoneType.Trap) inTrap = true;
             _speedMultiplier = Mathf.Min(_speedMultiplier, zone.SpeedMultiplier);
 
             if (!string.IsNullOrEmpty(zone.FirstEnterMessage) && _announced.Add(zone))
                 Message?.Invoke(zone.FirstEnterMessage);
         }
+
+        _inside.Clear();
+        foreach (var z in _insideNow) _inside.Add(z);
 
         if (inTrap)
         {
@@ -319,6 +342,11 @@ public class TurtleController : MonoBehaviour
     // Los objetos ligeros se empujan un poco con las aletas; los pesados simplemente bloquean.
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
+        if (!(hit.collider is TerrainCollider) && Time.time - _lastBump > 0.5f && CurrentSpeed > 0.01f)
+        {
+            _lastBump = Time.time;
+            Bumped?.Invoke(hit.collider);
+        }
         Rigidbody rb = hit.collider.attachedRigidbody;
         if (rb == null || rb.isKinematic || rb.mass > maxPushMass) return;
         if (hit.moveDirection.y < -0.3f) return;
