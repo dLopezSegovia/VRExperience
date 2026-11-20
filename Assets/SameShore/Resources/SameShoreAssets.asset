@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61295f710b64a6c45bbf5c327fcd1344, type: 3}
+  m_Name: SameShoreAssets
+  m_EditorClassIdentifier: Assembly-CSharp::SameShore.SameShoreAssets
+  fade: {fileID: 2100000, guid: ade13e65e0026d04f9933c5b969bbb55, type: 2}
+  turtleVision: {fileID: 2100000, guid: 46906c886f648c74ab8199ab519ed9dd, type: 2}
+  uiPanel: {fileID: 2100000, guid: 87996b185ff32494781281abcdbafc1b, type: 2}
+  uiLine: {fileID: 2100000, guid: a45330166596e5b4ea854c83592b2419, type: 2}
+  sandParticle: {fileID: 2100000, guid: 2d8e65b97056f764eb684fdbac7de2b6, type: 2}
+  roundedRect: {fileID: 2800000, guid: 120c155e993fe4a4e83925ef6d5a2df8, type: 3}
+  font: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
+  footsteps:
+  - {fileID: 8300000, guid: 378d1dd8e37cfb541a7c7b05b65360ab, type: 3}
+  - {fileID: 8300000, guid: daa82795f6804314c829cf71963c425c, type: 3}
+  - {fileID: 8300000, guid: ed704decdbbd6c446bc6d2e45fb83a27, type: 3}
+  - {fileID: 8300000, guid: b78d35b44d34c874da98a47ad6effc25, type: 3}
+  flipperStrokes:
+  - {fileID: 8300000, guid: 21d27c12ceaaa7c43adb7477a337a036, type: 3}
+  - {fileID: 8300000, guid: 5af14a0f35634b14ea6ac49603363035, type: 3}
+  - {fileID: 8300000, guid: d9e863a5c3f7c6446b1627b4cdfe24da, type: 3}
+  sandDrag: {fileID: 8300000, guid: 4024b007f3a4bbe4cbb8c4e6bbf7da10, type: 3}
+  gullCalls:
+  - {fileID: 8300000, guid: 0ff08ec1111c1f64c9681a2ebff33e18, type: 3}
+  - {fileID: 8300000, guid: 34abf73e32f586c4c9f9ac9424e7c665, type: 3}
+  - {fileID: 8300000, guid: b2a9974d841e94a4ab6d54d699ded3dc, type: 3}
+  gullFlap: {fileID: 8300000, guid: 531bebbf4d1550d49b96b85d01d82bbf, type: 3}
+  click: {fileID: 8300000, guid: 68899fa7751fd7049a94c7d130b06b2b, type: 3}
+  thud: {fileID: 8300000, guid: 9995dc0e7f71b6644a6900c74c0b3ffd, type: 3}
+  pickup: {fileID: 8300000, guid: 8a0553f35a8ce184cb28acdb6afa954b, type: 3}
+  sandPour: {fileID: 8300000, guid: 7a6310efbec8e2a41b7a857f7f0ea96a, type: 3}
+  heartbeat: {fileID: 8300000, guid: de33d4fc4760eeb46951317d773159c9, type: 3}
+  success: {fileID: 8300000, guid: 65ebc92d6a1b8b142aa9f76b70e3d7e5, type: 3}
+  transition: {fileID: 8300000, guid: 208b14e5db39d1f42a65f3ba14c94e4d, type: 3}

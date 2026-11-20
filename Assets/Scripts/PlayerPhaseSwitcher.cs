@@ -126,6 +126,7 @@ public class PlayerPhaseSwitcher : MonoBehaviour
         playerRoot.position += offset;
 
         turtle.Begin();
+        TurtleEntered?.Invoke();
     }
 
     private void ExitTurtle()
@@ -141,6 +142,20 @@ public class PlayerPhaseSwitcher : MonoBehaviour
         playerRoot.localScale = _origScale;
 
         RestoreHumanStuff();
+    }
+
+    /// <summary>Se lanza al terminar de convertir al jugador en tortuga.</summary>
+    public event System.Action TurtleEntered;
+
+    public bool InTurtle => _inTurtle;
+    public Transform TurtleSpawn => turtleSpawn;
+
+    /// <summary>Vuelve a poner la tortuga en el nido (reintentar) sin tocar el resto de la playa.</summary>
+    public void ResetTurtle()
+    {
+        if (!_inTurtle) { EnterTurtle(); return; }
+        turtle.TeleportTo(turtleSpawn.position, turtleSpawn.eulerAngles.y);
+        turtle.Begin();
     }
 
     private static float Yaw(Vector3 forward)

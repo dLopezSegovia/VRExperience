@@ -24,12 +24,19 @@ public class Flashlight : MonoBehaviour
 
     private void Update()
     {
+        // Teclado (pruebas en el Editor sin visor): F enciende/apaga
+        if (SameShore.XRInput.KeyDown(SameShore.XRInput.KeyId.F)) { Toggle(); return; }
+
         if (grabbable == null || grabbable.SelectingPointsCount == 0) return;
 
+        // Gatillo o botón A/X mientras se sostiene (por si el agarre usa el gatillo)
         if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger) ||
-            OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger))
+            OVRInput.GetDown(OVRInput.Button.SecondaryIndexTrigger) ||
+            OVRInput.GetDown(OVRInput.Button.One) ||
+            OVRInput.GetDown(OVRInput.Button.Three))
         {
             Toggle();
+            SameShore.XRInput.HapticBoth(0.3f, 0.04f);
         }
     }
 

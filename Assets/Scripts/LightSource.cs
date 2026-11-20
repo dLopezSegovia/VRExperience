@@ -12,7 +12,7 @@ public class LightSource : MonoBehaviour
 {
     public static readonly List<LightSource> All = new List<LightSource>();
 
-    [SerializeField, Range(0f, 2f)] private float strength = 1f;
+    [SerializeField, Range(0f, 3f)] private float strength = 1f;
 
     private Light _light;
 
@@ -43,6 +43,35 @@ public class LightSource : MonoBehaviour
         }
 
         return strength * falloff * cone;
+    }
+
+    /// <summary>¿Es luz artificial (linterna, hotel)? La del horizonte marino es natural.</summary>
+    public bool IsArtificial => artificial;
+    [SerializeField] private bool artificial = true;
+
+    public float Strength { get => strength; set => strength = value; }
+
+    /// <summary>
+    /// Suma de todas las fuentes: dirección (horizontal) ponderada por influencia.
+    /// La magnitud indica cuánto tira la luz; artificialShare = parte que viene de luz artificial.
+    /// </summary>
+    public static Vector3 GetNetPull(Vector3 position, out float artificialShare)
+    {
+        Vector3 net = Vector3.zero;
+        float total = 0f, art = 0f;
+        foreach (LightSource source in All)
+        {
+            float value = source.GetInfluence(position);
+            if (value <= 0f) continue;
+            Vector3 dir = source.transform.position - position;
+            dir.y = 0f;
+            if (dir.sqrMagnitude < 0.0001f) continue;
+            net += dir.normalized * value;
+            total += value;
+            if (source.artificial) art += value;
+        }
+        artificialShare = total > 0f ? art / total : 0f;
+        return net;
     }
 
     /// <summary>Devuelve la fuente con más influencia sobre una posición (o null).</summary>
