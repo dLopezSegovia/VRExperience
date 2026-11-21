@@ -14,7 +14,7 @@ namespace SameShore
         [SerializeField] private Mesh printMesh;
         [SerializeField] private int maxPrints = 160;
         [SerializeField] private Vector2 printSize = new Vector2(0.11f, 0.27f);
-        [SerializeField, Range(0.05f, 1f)] private float hatchlingSpeedMultiplier = 0.6f;
+        [SerializeField, Range(0.05f, 1f)] private float hatchlingSpeedMultiplier = 0.9f;   // trampled sand: a light hindrance (0.6 made the castle/hole area, full of prints, a crawl)
 
         readonly Queue<GameObject> _prints = new Queue<GameObject>();
         static Mesh _quad;

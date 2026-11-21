@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace SameShore.EditorTools
 {
-    /// <summary>Batch diagnostics: where key props ended up and what surrounds them.</summary>
+    /// <summary>Batch diagnostics: hatchling zones and what surrounds the dug hole.</summary>
     public static class SameShoreProbe
     {
         public static void Run()
@@ -13,18 +13,17 @@ namespace SameShore.EditorTools
             EditorSceneManager.OpenScene("Assets/SameShore/Scenes/SameShore.unity");
             Physics.SyncTransforms();
             var sb = new StringBuilder();
-            foreach (var name in new[] { "Flashlight", "Towel", "Umbrella", "BeachChair", "SideTable", "Cooler", "LitterBin", "Sandcastle", "Hole", "BagLanding", "MusicPlayer", "LightReel", "SandPail", "Shovel" })
+            sb.AppendLine("--- TurtleZones");
+            foreach (var z in Object.FindObjectsByType<TurtleZone>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                foreach (var c in z.GetComponents<Collider>())
+                    sb.AppendLine($"{z.name} type {z.Type} speed {z.SpeedMultiplier} enabled {z.enabled}/{c.enabled} {c.GetType().Name} center {c.bounds.center} size {c.bounds.size}");
+            var hole = GameObject.Find("Hole");
+            if (hole != null)
             {
-                var go = GameObject.Find(name);
-                if (go == null) { sb.AppendLine($"{name}: NOT FOUND"); continue; }
-                Vector3 p = go.transform.position;
-                float g = SameShoreInspector.SampleHeight(p);
-                sb.Append($"{name}: pos {p} ground {g:F3} (y-ground {p.y - g:F3}) active {go.activeInHierarchy}; near:");
-                foreach (var c in Physics.OverlapSphere(p, 0.35f, ~0, QueryTriggerInteraction.Collide))
-                    if (!c.transform.IsChildOf(go.transform)) sb.Append($" [{c.name}{(c.isTrigger ? " trig" : "")}]");
-                sb.AppendLine();
-                var vg = go.GetComponent<VRGrabbable>();
-                if (vg != null) sb.AppendLine($"   grabbable enabled {vg.grabbingEnabled}, colliders {go.GetComponentsInChildren<Collider>().Length}");
+                foreach (var c in hole.GetComponentsInChildren<Component>(true)) sb.AppendLine($"Hole part: {c.name} {c.GetType().Name}");
+                sb.AppendLine("--- colliders within 1.3 m of the hole");
+                foreach (var c in Physics.OverlapSphere(hole.transform.position, 1.3f, ~0, QueryTriggerInteraction.Collide))
+                    sb.AppendLine($"{c.name} ({c.GetType().Name}{(c.isTrigger ? ", trigger" : "")}) at {c.bounds.center} size {c.bounds.size}");
             }
             Debug.Log("[SameShoreProbe]\n" + sb);
             EditorApplication.Exit(0);

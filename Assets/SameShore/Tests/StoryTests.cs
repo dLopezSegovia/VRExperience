@@ -529,6 +529,16 @@ namespace SameShore.Tests
             yield return AimAt(W(5));
             SaveView("12_cans_and_hole.png");
             var hole = F<SandHole>();
+            {
+                // the trampled sand around the castle and the hole slows her only a little
+                var site = F<SandcastleSite>();
+                Vector3 a = site.Plot.position + (hole.transform.position - site.Plot.position) * 0.5f + Vector3.back * 0.9f;
+                yield return Teleport(a, a + Vector3.forward);
+                Vector3 s0 = turtle.transform.position;
+                yield return Hold(4f, Key.W);
+                float pace = Flat(turtle.transform.position - s0) / 4f;
+                T.Check($"Around the castle and the hole she keeps a normal pace ({pace:F2} m/s)", pace > 0.12f);
+            }
             Vector3 into = hole.transform.position + (W(5) - hole.transform.position).normalized * 0.1f;
             yield return Teleport(hole.transform.position - (W(6) - W(4)).normalized * 0.55f, hole.transform.position);
             Vector3 h0 = turtle.transform.position;

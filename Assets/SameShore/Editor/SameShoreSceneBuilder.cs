@@ -970,6 +970,7 @@ namespace SameShore.EditorTools
             Mesh quad = SaveMesh("FootprintQuad", FootprintSystem.BuildQuad());
             Set(fs, "footprintMaterial", M["Footprint"]);
             Set(fs, "printMesh", quad);
+            Set(fs, "hatchlingSpeedMultiplier", 0.9f);
             // older trails left by people earlier in the evening
             // the way the human came to the beach this afternoon, and a stroll along the water
             Trail(go.transform, quad, new[] { L(8f, 21f), L(5.5f, 14f), L(3.8f, 10.4f) });
@@ -993,7 +994,7 @@ namespace SameShore.EditorTools
                     left = !left;
                     Vector3 p = a + dir * t + side * (left ? -0.11f : 0.11f);
                     p = G(p.x, p.z);
-                    FootprintSystem.CreatePrint(parent, p, Normal(p.x, p.z), dir, left, M["Footprint"], new Vector2(0.11f, 0.27f), 0.6f, quad);
+                    FootprintSystem.CreatePrint(parent, p, Normal(p.x, p.z), dir, left, M["Footprint"], new Vector2(0.11f, 0.27f), 0.9f, quad);
                 }
             }
         }
