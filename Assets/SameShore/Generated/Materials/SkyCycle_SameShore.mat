@@ -29,7 +29,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Cycle: 0.15
+    - _Cycle: 2
     - _NightExposure: 0.32
     - _NightRotation: 200
     - _SunSize: 0.9994
@@ -38,8 +38,8 @@ Material:
     - _DayZenith: {r: 0.21999997, g: 0.45, b: 0.82, a: 1}
     - _GroundColor: {r: 0.31999996, g: 0.35999998, b: 0.39999998, a: 1}
     - _NightTint: {r: 0.35999998, g: 0.39999998, b: 0.52, a: 1}
-    - _SunColor: {r: 1, g: 0.89, b: 0.76, a: 1}
-    - _SunDir: {r: -0.32716903, g: 0.59412104, b: 0.7348337, a: 0}
+    - _SunColor: {r: 0, g: 0, b: 0, a: 0}
+    - _SunDir: {r: -0.40277836, g: -0.1391731, b: 0.90465486, a: 0}
     - _SunsetHorizon: {r: 1, g: 0.52, b: 0.27999997, a: 1}
     - _SunsetZenith: {r: 0.19999996, g: 0.23999995, b: 0.45, a: 1}
   m_BuildTextureStacks: []

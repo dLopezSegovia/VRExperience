@@ -27,7 +27,7 @@ namespace SameShore.Tests
             Check("GameManager starts in Intro (menu)", GameManager.Instance != null && GameManager.Instance.Current == GameState.Intro);
             Check("Start menu is visible", GameObject.Find("StartMenu") != null);
             Debug.Log("[SameShoreTest] scenario: " + mode);
-            StartCoroutine(Watchdog(mode == "full" ? 900f : 600f));
+            StartCoroutine(Watchdog(mode == "full" ? 1500f : 600f));
             switch (mode)
             {
                 case "turtle": yield return StoryTests.TurtleOnly(this); break;

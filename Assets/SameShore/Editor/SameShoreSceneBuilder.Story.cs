@@ -16,24 +16,42 @@ namespace SameShore.EditorTools
     /// </summary>
     public static partial class SameShoreSceneBuilder
     {
-        // ---- layout
+        // ---- layout (storyboard v3: every consequence of the human's day lies on the hatchling's way)
+        // A natural corridor (low dune berms with grass, rocks and driftwood, see BuildCorridor) runs from the nest
+        // to the sea; the camp sits on its right edge and every activity leaves its trace inside it:
+        //   d 17.5 nest -> d 16..10.6 the light string zigzags across the corridor (posts left/right)
+        //   d 12.5..10  cans that missed the bin (thrown from the chair across the corridor)
+        //   d 9.4       the chair, the speaker (music zone)  ·  d 7.7 the sandcastle + the dug hole side by side
+        //   d 4.4       the plastic bag (blown from the towel)  ·  d 2.5 the photo  ·  d 0 the sea
         static readonly Vector2 NestXY = new Vector2(-0.5f, 17.5f);
         static readonly Vector2[] RouteXY =
         {
-            new Vector2(-0.5f, 17.5f), new Vector2(-0.1f, 15.3f), new Vector2(0.7f, 13.1f), new Vector2(1.0f, 11.0f),
-            new Vector2(0.8f, 9.2f), new Vector2(0.95f, 7.4f), new Vector2(0.4f, 5.6f), new Vector2(1.0f, 4.0f),
-            new Vector2(1.1f, 2.4f), new Vector2(0.9f, 0.3f)
+            new Vector2(-0.5f, 17.5f), new Vector2(0.2f, 15.6f), new Vector2(0.3f, 13.6f), new Vector2(0.2f, 11.6f),
+            new Vector2(0.55f, 9.8f), new Vector2(0.42f, 8.3f), new Vector2(0.4f, 7.0f), new Vector2(0.6f, 5.8f),
+            new Vector2(0.75f, 4.4f), new Vector2(1.0f, 2.6f), new Vector2(0.9f, 0.3f)
         };
-        static readonly Vector2 SeatXY = new Vector2(2.9f, 9.7f);
-        static readonly Vector2 UmbrellaXY = new Vector2(3.5f, 8.6f);
-        static readonly Vector2 TowelXY = new Vector2(3.3f, 7.9f);
-        static readonly Vector2 BinXY = new Vector2(-0.9f, 10.7f);        // chair -> bin crosses the route at ~d 10.3
-        static readonly Vector2 PlotXY = new Vector2(-1.05f, 7.0f);       // sandcastle
-        static readonly Vector2 DigXY = new Vector2(0.15f, 7.3f);         // the hole: 0.8 m from the route
-        static readonly Vector2 BagLandXY = new Vector2(0.35f, 3.9f);     // wet sand (swash zone), next to the route
-        static readonly Vector2 FireworksXY = new Vector2(6.3f, 3.4f);    // roped-off zone by the water, off the route
-        static readonly Vector2[] PostXY = { new Vector2(-0.4f, 11.9f), new Vector2(2.1f, 13.5f), new Vector2(-1.1f, 15.0f), new Vector2(0.8f, 16.4f) };
-        static readonly Vector2 PhotoTurtleXY = new Vector2(1.25f, 3.2f);
+        static readonly Vector2 SeatXY = new Vector2(2.3f, 9.4f);
+        static readonly Vector2 UmbrellaXY = new Vector2(3.0f, 8.4f);
+        static readonly Vector2 TowelXY = new Vector2(2.75f, 7.1f);
+        static readonly Vector2 BinXY = new Vector2(-1.2f, 12.5f);        // 4.7 m from the chair, across the corridor
+        static readonly Vector2 PlotXY = new Vector2(-0.2f, 7.75f);       // sandcastle, in the middle of the way
+        static readonly Vector2 DigXY = new Vector2(1.05f, 6.95f);        // the hole, beside the castle (gap ~0.4 m)
+        static readonly Vector2 BagLandXY = new Vector2(0.75f, 4.4f);     // wet sand, right on the way down
+        static readonly Vector2 FireworksXY = new Vector2(6.3f, 3.4f);    // roped-off zone by the water, outside the corridor
+        static readonly Vector2[] PostXY = { new Vector2(-1.45f, 10.6f), new Vector2(1.95f, 12.6f), new Vector2(-1.4f, 14.4f), new Vector2(1.3f, 16.2f) };
+        static readonly Vector2 PhotoTurtleXY = new Vector2(1.0f, 2.6f);
+        // corridor crests (dx, d), nest -> sea
+        static readonly Vector2[] LeftEdgeXY =
+        {
+            new Vector2(-2.4f, 19.6f), new Vector2(-2.2f, 17.2f), new Vector2(-2.3f, 14.6f), new Vector2(-2.3f, 12.4f), new Vector2(-2.0f, 10.4f),
+            new Vector2(-1.55f, 8.6f), new Vector2(-1.5f, 6.6f), new Vector2(-1.4f, 4.8f), new Vector2(-1.5f, 3.0f), new Vector2(-1.8f, 1.3f)
+        };
+        static readonly Vector2[] RightEdgeXY =
+        {
+            new Vector2(1.9f, 19.6f), new Vector2(2.6f, 17.4f), new Vector2(3.0f, 14.8f), new Vector2(3.4f, 12.6f), new Vector2(4.1f, 10.6f),
+            new Vector2(4.3f, 8.6f), new Vector2(4.0f, 6.6f), new Vector2(3.2f, 5.0f), new Vector2(2.9f, 3.2f), new Vector2(3.1f, 1.3f)
+        };
+        static readonly Vector2[] BackEdgeXY = { new Vector2(-2.4f, 19.6f), new Vector2(-0.4f, 20.1f), new Vector2(1.9f, 19.6f) };
 
         static Transform _camp;
 
@@ -126,7 +144,7 @@ namespace SameShore.EditorTools
             MakeTransparent(bulbOff);
             M["BulbOff"] = bulbOff;
             var bulbOn = LitMat("BulbOn", new Color(1f, 0.82f, 0.55f), 0.9f);
-            Emission(bulbOn, new Color(1f, 0.62f, 0.3f) * 4.5f);
+            Emission(bulbOn, new Color(1f, 0.62f, 0.3f) * 11f);   // well above the bloom threshold: a real glow at night
             M["BulbOn"] = bulbOn;
             var hookGlow = SaveMat("HookMarker", Shader.Find("SameShore/SkyBillboard"));
             hookGlow.SetColor("_Color", new Color(1f, 0.85f, 0.45f, 1f));
@@ -155,6 +173,18 @@ namespace SameShore.EditorTools
             refl.SetColor("_BaseColor", new Color(0, 0, 0, 0));
             MakeAdditive(refl);
             M["FireworkReflection"] = refl;
+            // festoon glow: a warm halo around each bulb and a pool of light on the sand under each span
+            var halo = SaveMat("BulbHalo", Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+            halo.SetTexture("_BaseMap", dotTex);
+            halo.SetColor("_BaseColor", new Color(1.6f, 0.85f, 0.35f, 1f));
+            MakeAdditive(halo);
+            M["BulbHalo"] = halo;
+            var pool = SaveMat("LightPool", Shader.Find("Universal Render Pipeline/Particles/Unlit"));
+            pool.SetTexture("_BaseMap", dotTex);
+            pool.SetColor("_BaseColor", new Color(0.32f, 0.17f, 0.06f, 1f));
+            MakeAdditive(pool);
+            pool.renderQueue = (int)RenderQueue.Transparent - 50;
+            M["LightPool"] = pool;
 
             // sky for the day cycle
             var sky = SaveMat("SkyCycle_SameShore", Shader.Find("SameShore/SkyCycle"));
@@ -494,7 +524,7 @@ namespace SameShore.EditorTools
                 var c = MeshObj("EmptyCan" + (i + 1), _camp, CanMesh(), new[] { canMats[i], M["CanTop"] }, p, Quaternion.Euler(0, i * 50, 0));
                 AddCapsule(c, 0.033f, 0.122f);
                 var g = MakeGrab(c, 0.015f, "empty can");
-                g.throwScale = 1.12f;
+                g.throwScale = 1f;      // the controller's real release velocity, no boost
                 g.grabRadius = 0.12f;
                 var rb = c.GetComponent<Rigidbody>();
                 rb.linearDamping = 0.02f;
@@ -544,9 +574,11 @@ namespace SameShore.EditorTools
             s.photoTurtleStart.SetPositionAndRotation(LX(PhotoTurtleXY), Quaternion.identity);
             var pt = Child(_env, "PhotoTurtle");
             pt.transform.SetPositionAndRotation(LX(PhotoTurtleXY), Quaternion.identity);
+            pt.transform.localScale = Vector3.one * HatchlingScale;
             var ptModel = Model(Art + "/Models/Hatchling.fbx", pt.transform, "Mesh");
             Remap(ptModel, M);
             OrientByChild(ptModel, "Head");
+            PoseHatchling(pt.transform, ptModel);
             var ptAv = pt.AddComponent<HatchlingAvatar>();
             WireAvatar(ptAv, ptModel);
             s.photoTurtle = pt.AddComponent<PhotoHatchling>();
@@ -668,8 +700,9 @@ namespace SameShore.EditorTools
             bin.position = p;
             var mesh = Saved("Bin", () => MeshKit.Lathe("bin", new[]
             {
-                new Vector2(0.001f, 0f), new Vector2(0.3f, 0f), new Vector2(0.34f, 0.85f), new Vector2(0.36f, 0.88f),
-                new Vector2(0.33f, 0.89f), new Vector2(0.31f, 0.86f), new Vector2(0.28f, 0.04f), new Vector2(0.001f, 0.04f)
+                // narrower mouth (r 0.25) than the first version (r 0.34): the toss is a small skill challenge
+                new Vector2(0.001f, 0f), new Vector2(0.21f, 0f), new Vector2(0.25f, 0.85f), new Vector2(0.27f, 0.88f),
+                new Vector2(0.245f, 0.89f), new Vector2(0.225f, 0.86f), new Vector2(0.19f, 0.04f), new Vector2(0.001f, 0.04f)
             }, 28, false, false));
             LocalMesh("Body", bin, mesh, M["BinGreen"], Vector3.zero, Quaternion.identity);
             for (int i = 0; i < 10; i++)
@@ -678,20 +711,20 @@ namespace SameShore.EditorTools
                 wall.transform.SetParent(bin, false);
                 float a = i * 36f;
                 wall.transform.localRotation = Quaternion.Euler(0, a, 0);
-                wall.transform.localPosition = wall.transform.localRotation * new Vector3(0, 0.44f, 0.315f);
-                wall.size = new Vector3(0.22f, 0.88f, 0.04f);
+                wall.transform.localPosition = wall.transform.localRotation * new Vector3(0, 0.44f, 0.235f);
+                wall.size = new Vector3(0.16f, 0.88f, 0.035f);
             }
             var floor = new GameObject("Floor").AddComponent<BoxCollider>();
             floor.transform.SetParent(bin, false);
             floor.transform.localPosition = new Vector3(0, 0.02f, 0);
-            floor.size = new Vector3(0.6f, 0.04f, 0.6f);
+            floor.size = new Vector3(0.42f, 0.04f, 0.42f);
             var aim = Child(bin, "AimPoint").transform;
             aim.localPosition = new Vector3(0, 0.95f, 0);
             bin.gameObject.AddComponent<ThrowTarget>().aimPoint = aim;
             var trig = new GameObject("BinTrigger").AddComponent<BoxCollider>();
             trig.transform.SetParent(bin, false);
             trig.transform.localPosition = new Vector3(0, 0.42f, 0);
-            trig.size = new Vector3(0.52f, 0.8f, 0.52f);
+            trig.size = new Vector3(0.36f, 0.8f, 0.36f);
             trig.isTrigger = true;
             trigger = trig;
             return bin;
@@ -763,7 +796,10 @@ namespace SameShore.EditorTools
             var pg = MakeGrab(pail, 0.6f, "bucket", false);
             pg.grabRadius = 0.15f;
             pg.desktopOffset = new Vector3(0.2f, -0.35f, 0.6f);
-            var fill = LocalMesh("SandFill", pail.transform, Saved("PailFill", () => MeshKit.Lathe("f", new[] { new Vector2(0.001f, -0.5f), new Vector2(0.075f, -0.5f), new Vector2(0.09f, 0.5f), new Vector2(0.001f, 0.5f) }, 18, false, false)), M["SandFill"], Vector3.zero, Quaternion.identity, new Vector3(1, 0.1f, 1));
+            // the sand inside: a mesh rebuilt by SandPail in the pail's own space, clamped to the inner wall
+            var fill = LocalMesh("SandFill", pail.transform, Saved("PailFill", () => MeshKit.Lathe("f", new[] { new Vector2(0.001f, 0.014f), new Vector2(0.064f, 0.014f), new Vector2(0.066f, 0.05f), new Vector2(0.001f, 0.056f) }, 18, false, false)), M["SandFill"], Vector3.zero, Quaternion.identity);
+            fill.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+            fill.SetActive(false);
             var sp = pail.AddComponent<SandPail>();
             Set(sp, "fillVisual", fill.transform);
             Set(sp, "fullHeight", 0.17f);
@@ -1000,6 +1036,8 @@ namespace SameShore.EditorTools
             Set(gar, "cableMaterial", M["Cable"]);
             Set(gar, "bulbOffMaterial", M["BulbOff"]);
             Set(gar, "bulbOnMaterial", M["BulbOn"]);
+            Set(gar, "haloMaterial", M["BulbHalo"]);
+            Set(gar, "poolMaterial", M["LightPool"]);
             return gar;
         }
 

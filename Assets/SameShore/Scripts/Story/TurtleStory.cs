@@ -24,8 +24,13 @@ namespace SameShore
         [SerializeField] private GiantHuman giant;
         [SerializeField] private GullEncounters gulls;
         [SerializeField] private TurtleHearing hearing;
-        [SerializeField] private float firstGullAt = 15.8f;      // metres from the shore
-        [SerializeField] private float secondGullAt = 5.6f;
+        [SerializeField] private TurtleVitality vitality;
+        [Header("Narrative triggers (boxes across the corridor; distances below are only the fallback)")]
+        [SerializeField] private StoryTrigger gullZone1;
+        [SerializeField] private StoryTrigger gullZone2;
+        [SerializeField] private StoryTrigger jellyZone;
+        [SerializeField] private float firstGullAt = 13.2f;      // metres from the shore
+        [SerializeField] private float secondGullAt = 5.7f;
         [SerializeField] private float almostThereAt = 1.4f;
 
         public bool Running { get; private set; }
@@ -63,6 +68,8 @@ namespace SameShore
                     Say("The sand gives way - you slide into the hole the human dug.\nKeep crawling: dig your flippers in and climb out.", 6f);
                 }
             };
+            if (vitality != null) vitality.Message += Say;
+            if (hearing != null) hearing.Message += Say;
             _breath = Loop(SameShoreAssets.I.turtleBreath);
             _hum = Loop(SameShoreAssets.I.lightHum);
             if (giant != null) giant.Flashed += OnFlash;
@@ -114,14 +121,18 @@ namespace SameShore
                 giant.Play(path, feet, yaw);
                 _giantD = D(feet);
             }
-            if (hearing != null) hearing.Enable(true);
+            if (hearing != null) hearing.Enable(true, turtle.transform);
             if (gulls != null) gulls.ResetEncounters();
+            if (vitality != null) { vitality.ResetState(); vitality.Active = true; }
+            foreach (var z in new[] { gullZone1, gullZone2, jellyZone }) if (z != null) z.Arm(turtle.transform);
         }
 
         public void Stop()
         {
             Running = false;
             if (hearing != null) hearing.Enable(false);
+            if (vitality != null) vitality.Active = false;
+            foreach (var z in new[] { gullZone1, gullZone2, jellyZone }) if (z != null) z.Disarm();
             if (gulls != null) gulls.Stop();
         }
 
@@ -203,7 +214,8 @@ namespace SameShore
             list.Add(new Objective { Id = "food", Title = "Something to eat?", Sticky = true, HideMarker = true, Check = () => PassedBag || BitBag });
             list.Add(new Objective { Id = "giant", Title = "Get past the giant", Sticky = true, HideMarker = true, Check = () => PassedGiant });
             list.Add(new Objective { Id = "ocean", Title = "Reach the ocean", Sticky = true, HideMarker = true,
-                                     Check = () => GameManager.Instance != null && GameManager.Instance.Current == GameState.End });
+                                     Check = () => GameManager.Instance != null && GameManager.Instance.Current == GameState.End,
+                                     Progress = () => vitality != null ? vitality.StatusText() : "" });
             return list;
         }
 
@@ -233,19 +245,20 @@ namespace SameShore
 
             if (!PassedCans && (d < _cansD || CansOnRoute == 0 && d < 9.5f)) PassedCans = true;
             if (!PassedHole && d < _holeD - 0.9f) PassedHole = true;
-            if (!_gull1 && d < firstGullAt && gulls != null) { _gull1 = true; gulls.StartPass(turtle); }
-            if (!_gull2 && d < secondGullAt && gulls != null) { _gull2 = true; gulls.StartAttack(turtle); }
+            if (!_gull1 && gulls != null && ((gullZone1 != null && gullZone1.Fired) || d < firstGullAt)) { _gull1 = true; gulls.StartSwoop(turtle); }
+            // the second attack waits for the first to finish (never two birds at once)
+            if (!_gull2 && gulls != null && gulls.FirstDone && ((gullZone2 != null && gullZone2.Fired) || d < secondGullAt)) { _gull2 = true; gulls.StartAttack(turtle); }
 
             // the bag on the wet sand
             if (bag != null && bag.State == WindBag.Phase.Landed && !BitBag)
             {
                 float dist = Flat(bag.transform.position - p);
-                if (!_jellyPrompt && dist < 1.1f)
+                if (!_jellyPrompt && (dist < 1.1f || (jellyZone != null && jellyZone.Fired)))
                 {
                     _jellyPrompt = true;
                     Say("You're hungry...\nIs that a jellyfish?", 5f);
                 }
-                if (_jellyPrompt && (dist < 0.17f || (dist < 0.4f && (XRInput.AnyTriggerDown || XRInput.KeyDown(XRInput.KeyId.E)))))
+                if (_jellyPrompt && (dist < 0.24f || (dist < 0.45f && (XRInput.AnyTriggerDown || XRInput.KeyDown(XRInput.KeyId.E)))))
                     StartCoroutine(BiteBag());
             }
             if (!PassedBag && d < _bagD - 0.6f) PassedBag = true;

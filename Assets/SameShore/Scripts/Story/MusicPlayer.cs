@@ -23,6 +23,10 @@ namespace SameShore
         public float BaseVolume => volumeLevels[Mathf.Clamp(VolumeLevel, 0, volumeLevels.Length - 1)];
         /// <summary>Extra gain applied by the hatchling's perception (kept moderate).</summary>
         public float PerceptionGain { get; set; } = 1f;
+        /// <summary>When set, the hatchling's hearing drives the source directly (Act II mix).</summary>
+        public bool Overridden { get; set; }
+        /// <summary>The player's own state (play pressed), even while the hatchling's mix holds the source.</summary>
+        public bool Wanted => !_paused;
 
         bool _paused = true;
         MaterialPropertyBlock _mpb;
@@ -74,7 +78,7 @@ namespace SameShore
 
         void Update()
         {
-            if (source == null) return;
+            if (source == null || Overridden) return;
             float target = IsOn ? BaseVolume * PerceptionGain : 0f;
             source.volume = Mathf.MoveTowards(source.volume, Mathf.Min(target, 0.85f), Time.deltaTime * 0.6f);
         }

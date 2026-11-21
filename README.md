@@ -69,25 +69,48 @@ cumplirse y la flecha y el marcador señalan el siguiente.
 *"Earlier that evening, beneath the sand..."* (se sienten los fuegos como retumbos y vibraciones) →
 *"The same night. A few minutes before the photo."* La cría sale del nido.
 
-- **Cuerpo y cámara:** ojos a **~8 cm** de la arena (rig a escala 0,05), aletas visibles al reptar.
+- **Cuerpo y cámara:** la cámara está **en los ojos de la tortuga** (~7,5-8 cm sobre la arena, como pide el PDF).
+  El modelo se escala ×2,7 (caparazón de ~16 cm) con postura de reptar (cabeza y cuello levantados, la parte
+  delantera algo elevada) para que sus ojos queden a esa altura con proporciones coherentes. Un `EyeAnchor`
+  entre los ojos del modelo es el punto de calibración: `PlayerPhaseSwitcher` desplaza **el rig, nunca la
+  cámara**, para que la posición actual de la cabeza coincida con él (al entrar en la fase, al recentrar el
+  visor y, con un fundido corto, si el jugador se aleja físicamente > ~70 cm). El seguimiento del visor sigue
+  siendo 1:1 (a escala 1:20). La cabeza propia no se dibuja (solo su sombra); al mirar abajo se ven el cuello,
+  el caparazón y las aletas.
   Stick adelante = brazadas, atrás = marcha atrás, izquierda/derecha = girar despacio (25°/s). A/X = impulso
   opcional (nada depende de él).
-- **Ruta semilineal** del nido al mar, enmarcada por rocas, madera y el desnivel. Objetivo **REACH THE OCEAN**
+- **Ruta semilineal delimitada de forma natural:** dunas bajas esculpidas en una **copia** del terreno
+  (`Generated/Terrain`, el asset del equipo no se toca), con hierba de duna, rocas y troncos en las crestas.
+  Dentro de las crestas hay límites invisibles que **solo son sólidos en la fase tortuga** (`TurtleBounds`); el
+  humano pasa por encima de las dunas sin problema. Ir de lado termina contra la duna: no se pueden rodear
+  los obstáculos. Objetivo **REACH THE OCEAN**
   con subobjetivos: salir del nido, ir hacia el brillo del mar, pasar las latas gigantes, superar el hoyo,
   vigilar el cielo, ¿comida?, pasar al gigante, llegar al mar.
 - **Latas:** las que fallaste, en el mismo sitio, enormes. **Hoyo:** si te acercas te deslizas dentro y sales
   reptando (siempre se puede salir). **Bolsa:** *"You're hungry... Is that a jellyfish?"*: late como una
   medusa; al morderla: *"It's not a jellyfish. It's a plastic bag."*, arcadas y lentitud unos segundos,
   y te recuperas.
-- **Ruido humano:** la **misma canción** del altavoz, oída con filtro paso bajo, distorsión, reverberación de
-  cueva y tono más grave, y los graves como pulsos suaves en los mandos. El volumen del altavoz nunca pasa
-  de 0,85: el efecto viene del filtrado y la espacialización, no de los decibelios.
-- **Luces que confunden:** cada tramo de la guirnalda es una fuente de luz que atrae (`LightSource`), igual que
-  la linterna del humano. El horizonte marino es la referencia natural. La atracción desvía las brazadas y
-  gira el cuerpo poco a poco; la cámara nunca se gira y siempre puedes corregir.
-- **Gaviotas:** **dos encuentros como máximo**, nunca mortales. (1) Una sombra cruza la arena y la gaviota pasa.
-  (2) Vuelve, da vueltas, se queda suspendida y chilla; un anillo marca dónde atacará: basta con salir del
-  anillo reptando (o esconderse junto a algo). Si te alcanza: aturdimiento breve y un empujón.
+- **Música (trigger narrativo):** el altavoz está en silencio al salir del nido. Al cruzar la zona del
+  campamento (`StoryTrigger` "MusicZone", de duna a duna) el humano la vuelve a poner: la **misma canción**,
+  espacial, con paso bajo que se abre al acercarse (de ~600 Hz lejos a ~3,4 kHz junto al altavoz), distorsión
+  y reverberación de cueva crecientes, tono más grave, coro, y los graves como pulsos en los mandos. Las olas
+  bajan suavemente (hasta ×0,55) mientras la música domina y se recuperan al dejar atrás el campamento, donde
+  la música se aleja (×0,45). Volumen máximo 0,8; todos los cambios son graduales.
+- **Luces que confunden y dañan:** la guirnalda en zigzag cruza el camino cuatro veces. Bombillas con emisión
+  ×11 (bloom cálido), halo aditivo por bombilla, una mancha de luz en la arena bajo cada tramo y una luz puntual
+  real por tramo (intensidad 2,4, alcance 6 m: 4 luces en total, apto para Quest). Cada tramo atrae
+  (`LightSource`); justo debajo de una bombilla la atracción se desvanece para que siempre puedas salir.
+  **Daño (`TurtleVitality`):** bajo la parte baja de un tramo (bombillas a ~1 m) la cría se deslumbra de forma
+  progresiva: brazadas más lentas (hasta ×0,55), viñeteado oscuro cálido y menos contraste (post-procesado
+  suave, sin destellos ni movimiento de cámara) y pérdida lenta de fuerza que **nunca baja del 50 %** por las
+  luces. Al alejarse desaparece y la fuerza se recupera. Cruzar cerca de un poste (bombillas altas) lo evita.
+  La fuerza se ve en el HUD ("strength 80 %").
+- **Gaviotas: dos ataques reales** (ni más ni menos), con trigger de zona y nunca mortales.
+  (1) Junto a la guirnalda: se oye un graznido sobre el mar, su sombra corre por la arena, la gaviota llega
+  **de frente**, baja y visible desde 8 cm, apunta a donde vas y se compromete ~1 s antes del impacto: cambiar
+  de ritmo o dirección, un impulso o pegarse a algo la hace fallar. (2) Pasado el castillo: da vueltas, se
+  queda suspendida delante y chilla; un anillo la sigue y, al segundo chillido, salta a donde irás. Si
+  alcanza: aturdimiento de 0,8 s, un pequeño empujón, −15 % de fuerza (mínimo absoluto 20 %).
 - **El gigante y la fotografía:** el humano del Acto I **repite lo que hizo**: su paseo grabado desde el nido
   (con la linterna encendida si la llevabas) y, en el **mismo sitio** donde hiciste la foto, se agacha, saca el
   móvil y dispara. Deslumbramiento moderado (velo cálido de ~0,55 que se desvanece en 2,4 s, sin
@@ -96,6 +119,24 @@ cumplirse y la flecha y el marcador señalan el siguiente.
   el chillido de una gaviota que se acerca, aleteo, el golpe, silencio. **SAME SHORE** ·
   *"One beach. Two bodies. Two very different worlds."* · *"What seemed harmless to one became a struggle for
   the other."* → *Experience it again* / *Main menu*. La muerte solo ocurre aquí.
+
+## Distribución de la playa (todo en el camino de la tortuga)
+
+Del nido (d = 17,5 m del agua) al mar, por el pasillo de dunas:
+
+| d (m) | Lo que dejó el humano | Efecto en la tortuga |
+|---|---|---|
+| 16-10,6 | Postes y guirnalda en zigzag (cruza el pasillo 4 veces) | Atracción, deslumbramiento, daño leve |
+| 13,2 | — | Trigger del 1.er ataque de gaviota |
+| 12,5-10 | Latas falladas (lanzadas desde la silla hacia la papelera, a través del pasillo) | Obstáculos físicos |
+| 11,6 | Zona del campamento | Trigger de la música |
+| 9,4-7 | Silla, mesa con el altavoz, nevera, sombrilla, toalla con la linterna (borde derecho) | Ruido, obstáculos |
+| 7,75 / 6,95 | Castillo de arena y el hoyo excavado, uno al lado del otro en mitad del camino | Rodear o caer y salir |
+| 5,75 | — | Trigger del 2.º ataque |
+| 4,4 | La bolsa (el viento la lleva desde la toalla) | "¿Medusa?" (trigger) |
+| 2,6 | Donde el humano hizo la foto | El gigante y el flash |
+
+Nada se teletransporta al empezar la fase tortuga: las posiciones son las que dejó el Acto I.
 
 ## Continuidad entre los dos actos
 
@@ -169,5 +210,7 @@ Quest 3 físicas:** todo se ha comprobado con Unity en modo batch.
   cámara del móvil, que solo renderiza mientras lo sostienes y a medio framerate).
 - Orientación de la pose de la linterna, el móvil y la pala respecto al mando real (se usa la dirección del
   ancla del mando, la misma del láser de los menús); ajustable en `VRGrabbable` (pose).
-- Lanzamiento de latas con mandos reales (multiplicador `throwScale` 1,12).
+- Lanzamiento de latas con mandos reales: ahora sin multiplicador (`throwScale` 1), papelera a 4,7 m y boca
+  de 25 cm de radio. En escritorio se añade una dispersión de puntería que crece con la distancia.
+- Calibración de la cámara de la tortuga con distintos jugadores (de pie / sentados) y al recentrar.
 - No hay soporte específico de seguimiento de manos sin mandos.

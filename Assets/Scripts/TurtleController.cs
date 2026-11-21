@@ -71,6 +71,8 @@ public class TurtleController : MonoBehaviour
     public bool IsStunned => Time.time < _stunnedUntil;
     /// <summary>Temporary slowdown applied by the story (e.g. after biting the plastic bag). 1 = normal.</summary>
     public float ExternalSpeedMultiplier { get; set; } = 1f;
+    /// <summary>Slow-down from hazards that last while you stay in them (light glare). 1 = none.</summary>
+    public float HazardSpeedMultiplier { get; set; } = 1f;
     /// <summary>Optional: disable the sudden burst (A/X) so nothing depends on it.</summary>
     public bool BurstEnabled { get; set; } = true;
 
@@ -191,7 +193,7 @@ public class TurtleController : MonoBehaviour
             float t = _strokeTime / _strokeLen;
             // pulso suave (sin²): el área bajo la curva = distancia de la brazada
             float profile = 2f * Mathf.Sin(Mathf.PI * t) * Mathf.Sin(Mathf.PI * t);
-            CurrentSpeed = _strokeDist / _strokeLen * profile * _speedMultiplier * ExternalSpeedMultiplier;
+            CurrentSpeed = _strokeDist / _strokeLen * profile * _speedMultiplier * ExternalSpeedMultiplier * HazardSpeedMultiplier;
             motion = _strokeDir * CurrentSpeed;
             _strokeTime += dt;
             if (_strokeTime >= _strokeLen) EndStroke();

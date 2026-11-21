@@ -21,6 +21,10 @@ public class PlayerPhaseSwitcher : MonoBehaviour
 
     [Header("Fase tortuga")]
     [SerializeField] private float turtleScale = 0.05f; // 1.65 m -> ~8 cm de ojos
+    [Tooltip("Punto entre los ojos del modelo de la tortuga (hijo de TurtleBody). La cámara se calibra aquí.")]
+    [SerializeField] private Transform eyeAnchor;
+    [Tooltip("Si la cabeza real se aleja de los ojos más que esto (metros de mundo) durante un rato, se recalibra con un fundido corto.")]
+    [SerializeField] private float recalibrateDistance = 0.035f;
 
     [Header("Se desactiva en la fase tortuga")]
     [Tooltip("Cualquier componente del player cuyo nombre contenga alguno de estos textos.")]
@@ -121,12 +125,75 @@ public class PlayerPhaseSwitcher : MonoBehaviour
         float bodyYaw = Yaw(turtle.transform.forward);
         playerRoot.RotateAround(head.position, Vector3.up, Mathf.DeltaAngle(headYaw, bodyYaw));
 
-        Vector3 offset = turtle.transform.position - head.position;
-        offset.y = 0f;
-        playerRoot.position += offset;
+        AlignHeadToEyes();
+        _driftTime = 0f;
 
         turtle.Begin();
         TurtleEntered?.Invoke();
+    }
+
+    float _driftTime;
+    bool _recalibrating;
+
+    /// <summary>
+    /// Calibración: desplaza el rig (nunca la cámara) para que la posición ACTUAL de la cabeza coincida con los ojos
+    /// del modelo. El seguimiento del visor sigue siendo 1:1 (a escala 1:20): mirar, inclinarse o agacharse se
+    /// respeta; solo se corrige el desfase de partida (altura real del jugador, sentado o de pie, centro del guardián).
+    /// </summary>
+    public void AlignHeadToEyes()
+    {
+        if (playerRoot == null || head == null) return;
+        if (eyeAnchor != null)
+        {
+            playerRoot.position += eyeAnchor.position - head.position;
+            return;
+        }
+        Vector3 offset = turtle.transform.position - head.position;
+        offset.y = 0f;
+        playerRoot.position += offset;
+    }
+
+    public Transform EyeAnchor => eyeAnchor;
+    public Transform Head => head;
+
+    private void OnEnable()
+    {
+        if (OVRManager.display != null) OVRManager.display.RecenteredPose += OnRecentered;
+    }
+
+    private void OnDisable()
+    {
+        if (OVRManager.display != null) OVRManager.display.RecenteredPose -= OnRecentered;
+    }
+
+    private void OnRecentered()
+    {
+        if (_inTurtle) AlignHeadToEyes();
+    }
+
+    private void LateUpdate()
+    {
+        if (!_inTurtle || eyeAnchor == null || head == null || _recalibrating) return;
+        // the player walked away in the real room (or stood up / sat down): re-seat the eyes after a moment
+        Vector3 err = eyeAnchor.position - head.position;
+        bool far = new Vector2(err.x, err.z).magnitude > recalibrateDistance || Mathf.Abs(err.y) > recalibrateDistance;
+        _driftTime = far ? _driftTime + Time.deltaTime : 0f;
+        if (_driftTime > 0.8f)
+        {
+            Debug.Log($"[PlayerPhaseSwitcher] head drifted {err.magnitude * 100f:F1} cm from the eyes: recalibrating");
+            StartCoroutine(Recalibrate());
+        }
+    }
+
+    private System.Collections.IEnumerator Recalibrate()
+    {
+        _recalibrating = true;
+        var fader = SameShore.ScreenFader.Instance;
+        if (fader != null) yield return fader.FadeTo(1f, 0.2f);
+        AlignHeadToEyes();
+        _driftTime = 0f;
+        if (fader != null) yield return fader.FadeTo(0f, 0.3f);
+        _recalibrating = false;
     }
 
     private void ExitTurtle()

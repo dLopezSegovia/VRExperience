@@ -21,12 +21,18 @@ namespace SameShore
         [SerializeField] private VRGrabbable reel;
         [SerializeField] private float hookRadius = 0.4f;
         [SerializeField] private float bulbSpacing = 0.45f;
-        [SerializeField] private float sagPerMetre = 0.07f;
+        [SerializeField] private float sagPerMetre = 0.17f;      // deep festoon: the middle bulbs hang low over the sand
         [SerializeField] private Mesh bulbMesh;
         [SerializeField] private Material cableMaterial;
         [SerializeField] private Material bulbOffMaterial;
         [SerializeField] private Material bulbOnMaterial;
-        [SerializeField] private float lightStrength = 1.15f;
+        [SerializeField] private float lightStrength = 1.35f;
+        [Header("Glow (cheap on Quest: additive halos + one point light per span)")]
+        [SerializeField] private Material haloMaterial;
+        [SerializeField] private Material poolMaterial;
+        [SerializeField] private float haloSize = 0.32f;
+        [SerializeField] private float spanLightIntensity = 2.4f;
+        [SerializeField] private float spanLightRange = 6f;
 
         public int Hooked { get; private set; }
         public int HooksTotal => hooks != null ? hooks.Length : 0;
@@ -39,6 +45,11 @@ namespace SameShore
 
         readonly List<Renderer> _bulbs = new List<Renderer>();
         readonly List<Light> _lights = new List<Light>();
+        readonly List<GameObject> _glows = new List<GameObject>();
+        readonly List<Vector3> _bulbPositions = new List<Vector3>();
+
+        /// <summary>World positions of every bulb (the hatchling's light hazard reads them).</summary>
+        public IReadOnlyList<Vector3> BulbPositions => _bulbPositions;
         LineRenderer _live;
 
         void Start()
@@ -133,6 +144,43 @@ namespace SameShore
                 br.sharedMaterial = LightsOn ? bulbOnMaterial : bulbOffMaterial;
                 br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 _bulbs.Add(br);
+                _bulbPositions.Add(bulb.transform.position);
+                if (haloMaterial != null)
+                {
+                    // soft warm halo around the bulb (faces the viewer): the glow that bloom then spreads
+                    var halo = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                    halo.name = "Halo";
+                    Destroy(halo.GetComponent<Collider>());
+                    halo.transform.SetParent(bulb.transform, false);
+                    halo.transform.position = bulb.transform.position + Vector3.down * 0.012f;
+                    halo.transform.localScale = Vector3.one * haloSize * (0.85f + 0.3f * Mathf.PerlinNoise(p.x * 3f, p.z * 3f));
+                    var hr = halo.GetComponent<MeshRenderer>();
+                    hr.sharedMaterial = haloMaterial;
+                    hr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    hr.receiveShadows = false;
+                    halo.AddComponent<Billboard>();
+                    halo.SetActive(LightsOn);
+                    _glows.Add(halo);
+                }
+            }
+            if (poolMaterial != null)
+            {
+                // warm pool of light on the sand under the low middle of the span (baked look, no extra light)
+                Vector3 low = Vector3.Lerp(a, b, 0.5f) + Vector3.down * sag;
+                var pool = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                pool.name = "LightPool";
+                Destroy(pool.GetComponent<Collider>());
+                pool.transform.SetParent(cable.transform, false);
+                pool.transform.position = MeshKit.OnGround(low, 0.015f);
+                Vector3 along = b - a; along.y = 0;
+                pool.transform.rotation = Quaternion.LookRotation(Vector3.down, along.normalized);
+                pool.transform.localScale = new Vector3(2.4f, Mathf.Max(2.6f, along.magnitude * 0.9f), 1f);
+                var pr = pool.GetComponent<MeshRenderer>();
+                pr.sharedMaterial = poolMaterial;
+                pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                pr.receiveShadows = false;
+                pool.SetActive(LightsOn);
+                _glows.Add(pool);
             }
             // one real light per span (cheap on Quest), also what the hatchling perceives
             var lg = new GameObject("SpanLight");
@@ -141,8 +189,8 @@ namespace SameShore
             var l = lg.AddComponent<Light>();
             l.type = LightType.Point;
             l.color = new Color(1f, 0.72f, 0.42f);
-            l.range = 4.5f;
-            l.intensity = 0.9f;
+            l.range = spanLightRange;
+            l.intensity = spanLightIntensity;
             l.shadows = LightShadows.None;
             l.enabled = LightsOn;
             var src = lg.AddComponent<LightSource>();
@@ -160,6 +208,7 @@ namespace SameShore
                 if (i % 4 == 0) yield return null;
             }
             foreach (var l in _lights) l.enabled = true;
+            foreach (var g in _glows) if (g != null) g.SetActive(true);
             LightsOn = true;
             if (BeachLog.I != null) { BeachLog.I.LightsInstalled = true; BeachLog.I.Record("light string switched on", hooks[0].position); }
         }
@@ -171,6 +220,7 @@ namespace SameShore
             StopAllCoroutines();
             foreach (var b in _bulbs) b.sharedMaterial = bulbOnMaterial;
             foreach (var l in _lights) l.enabled = true;
+            foreach (var g in _glows) if (g != null) g.SetActive(true);
             LightsOn = true;
             if (BeachLog.I != null) BeachLog.I.LightsInstalled = true;
         }

@@ -324,6 +324,10 @@ namespace SameShore
                     if (tt != null && tt.aimPoint != null) target = tt.aimPoint.position;
                     Vector3 from = Held.transform.position;
                     float dist = new Vector2(target.x - from.x, target.z - from.z).magnitude;
+                    // a mouse click is not an arm: add the scatter of a real throw (grows with distance), so the
+                    // desktop toss is a skill shot like in VR and not a guaranteed basket
+                    Vector2 scatter = UnityEngine.Random.insideUnitCircle * (0.04f + 0.055f * dist);
+                    target += new Vector3(scatter.x, 0f, scatter.y);
                     float tf = Mathf.Clamp(0.45f + dist * 0.16f, 0.45f, 1.3f);
                     Vector3 v = (target - from) / tf - 0.5f * Physics.gravity * tf;
                     Release(v / Mathf.Max(0.01f, Held.throwScale), Vector3.zero);

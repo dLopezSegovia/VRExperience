@@ -83,6 +83,9 @@ namespace SameShore
             if (voice != null && SameShoreAssets.I.gullDive != null) voice.PlayOneShot(SameShoreAssets.I.gullDive, 1f);
         }
 
+        /// <summary>Moves the current flight/dive target without restarting the manoeuvre (homing swoops).</summary>
+        public void Retarget(Vector3 p) => _target = p;
+
         public void Leave(Vector3 seaward)
         {
             State = Mode.Leaving;

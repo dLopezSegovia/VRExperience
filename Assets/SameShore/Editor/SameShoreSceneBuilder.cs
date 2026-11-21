@@ -56,6 +56,7 @@ namespace SameShore.EditorTools
             _terrains = Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None);
             zs = FindShoreZ(cx);
             Debug.Log($"[SameShore] shoreline z = {zs:F2} at x = {cx}");
+            SculptCorridor();   // the dune berms that frame the hatchling's way (before anything is placed on the sand)
 
             _env = new GameObject("SameShore_Environment").transform;
             var systems = new GameObject("SameShore_Systems").transform;
@@ -66,6 +67,7 @@ namespace SameShore.EditorTools
             BuildSea();
             var props = PlaceProps();
             BuildDecor();
+            BuildCorridor();
             var footprints = BuildFootprints(systems);
             var gulls = BuildGulls();
             BuildHotel();
@@ -1051,6 +1053,36 @@ namespace SameShore.EditorTools
         }
 
         /// <summary>Rotate a model so its named child (head) points along the parent's +Z.</summary>
+        /// <summary>
+        /// Hatchling model scale. The Blender model is a 6 cm hatchling with its eyes ~0.8 cm up; the experience is
+        /// perceived at 1:20 with the eyes ~8 cm over the sand (PDF), so the body is scaled to carry the camera at its
+        /// eyes: x2.7 plus the crawling posture (front raised, head up) gives ~8 cm eyes on a ~16 cm shell.
+        /// </summary>
+        const float HatchlingScale = 2.7f;
+
+        /// <summary>Crawling posture: neck and head raised to look at the horizon, front of the body a little up.</summary>
+        static void PoseHatchling(Transform root, GameObject model)
+        {
+            Transform neck = FindDeep(model.transform, "Neck");
+            Vector3 fwd = root.forward, right = root.right;
+            if (neck != null && neck.GetComponent<Renderer>() != null)
+            {
+                Bounds nb = neck.GetComponent<Renderer>().bounds;
+                Vector3 pivot = nb.center - fwd * Vector3.Dot(nb.extents, new Vector3(Mathf.Abs(fwd.x), Mathf.Abs(fwd.y), Mathf.Abs(fwd.z))) * 0.7f;
+                foreach (var part in new[] { "Neck", "Head", "Beak", "EyeL", "EyeR" })
+                {
+                    var t = FindDeep(model.transform, part);
+                    if (t != null) t.RotateAround(pivot, right, part == "Neck" ? -24f : -40f);
+                }
+            }
+            // front up by 8 degrees around the rear of the plastron, then back onto the ground
+            Bounds all = RendererBounds(model);
+            Vector3 rear = new Vector3(all.center.x, all.min.y, all.center.z) - fwd * Vector3.Dot(all.extents, new Vector3(Mathf.Abs(fwd.x), 0, Mathf.Abs(fwd.z))) * 0.8f;
+            model.transform.RotateAround(rear, right, -8f);
+            all = RendererBounds(model);
+            model.transform.position += Vector3.up * (root.position.y - all.min.y - 0.002f);
+        }
+
         static void OrientByChild(GameObject model, string child)
         {
             Transform c = FindDeep(model.transform, child);
@@ -1186,26 +1218,42 @@ namespace SameShore.EditorTools
             GameObject body = Find("TurtleBody");
             body.transform.SetPositionAndRotation(Find("TurtleSpawn").transform.position, Quaternion.identity);
             var tcc = body.GetComponent<CharacterController>();
-            tcc.radius = 0.035f;
-            tcc.height = 0.07f;
-            tcc.center = new Vector3(0, 0.037f, 0);
-            tcc.stepOffset = 0.02f;
+            // body sized to the 1:20 perception: shell ~14 cm, eyes ~8 cm over the sand (PDF), see HatchlingScale
+            tcc.radius = 0.058f;
+            tcc.height = 0.12f;
+            tcc.center = new Vector3(0, 0.06f, 0);
+            tcc.stepOffset = 0.03f;
             tcc.slopeLimit = 40f;
-            tcc.skinWidth = 0.004f;
+            tcc.skinWidth = 0.005f;
             tcc.minMoveDistance = 0f;
             var turtle = body.GetComponent<TurtleController>();
             foreach (Transform old in body.transform.Cast<Transform>().ToArray())
-                if (old.name == "HatchlingModel") Object.DestroyImmediate(old.gameObject);
+                if (old.name == "HatchlingModel" || old.name == "EyeAnchor") Object.DestroyImmediate(old.gameObject);
             var avatarRoot = Child(body.transform, "HatchlingModel");
-            // the eyes (camera) sit above the neck: shell below/behind, front flippers at the lower edge of the view
-            avatarRoot.transform.localPosition = new Vector3(0, 0, 0.004f);
-            avatarRoot.transform.localScale = Vector3.one * 1.25f;
+            avatarRoot.transform.localPosition = Vector3.zero;
+            avatarRoot.transform.localScale = Vector3.one * HatchlingScale;
             var model = Model(Art + "/Models/Hatchling.fbx", avatarRoot.transform, "Mesh");
             Remap(model, M);
             OrientByChild(model, "Head");
+            PoseHatchling(avatarRoot.transform, model);
+            // the camera is calibrated onto the eyes (PlayerPhaseSwitcher); the player's own head is not drawn
+            // (only its shadow), so it never covers the view; shell, neck and flippers stay visible looking down
+            var eyeAnchor = Child(body.transform, "EyeAnchor").transform;
+            Transform eyeL = FindDeep(model.transform, "EyeL"), eyeR = FindDeep(model.transform, "EyeR");
+            Vector3 eyes = eyeL != null && eyeR != null
+                ? (eyeL.GetComponent<Renderer>().bounds.center + eyeR.GetComponent<Renderer>().bounds.center) * 0.5f
+                : body.transform.TransformPoint(new Vector3(0, 0.08f, 0.08f));
+            eyeAnchor.position = eyes + Vector3.up * 0.004f;
+            eyeAnchor.rotation = body.transform.rotation;
+            Debug.Log($"[SameShore] hatchling eye height = {eyeAnchor.position.y - body.transform.position.y:F3} m, shell length = {0.06f * HatchlingScale:F3} m");
             var avatar = avatarRoot.AddComponent<HatchlingAvatar>();
             WireAvatar(avatar, model);
             avatar.controller = turtle;
+            foreach (var part in new[] { "Head", "Beak", "EyeL", "EyeR" })
+            {
+                var t = FindDeep(model.transform, part);
+                if (t != null && t.GetComponent<Renderer>() != null) t.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.ShadowsOnly;
+            }
             var strokeSrc = body.AddComponent<AudioSource>();
             strokeSrc.spatialBlend = 0;
             strokeSrc.playOnAwake = false;
@@ -1218,7 +1266,7 @@ namespace SameShore.EditorTools
             Set(turtle, "strokeSource", strokeSrc);
             Set(turtle, "dragSource", dragSrc);
             // design values (the scene still held the first prototype's numbers)
-            Set(turtle, "strokeDistance", 0.13f);   // ~0.17 m/s average: about 1:0.12 of the human walk, x20 perceived
+            Set(turtle, "strokeDistance", 0.14f);   // ~0.17 m/s average: about 1:0.12 of the human walk, x20 perceived
             Set(turtle, "strokeDuration", 0.6f);
             Set(turtle, "strokeThreshold", 0.55f);
             Set(turtle, "turnSpeed", 25f);
@@ -1226,19 +1274,21 @@ namespace SameShore.EditorTools
             Set(turtle, "maxPushMass", 1f);
             Set(turtle, "pushStrength", 0.3f);
             Set(turtle, "pushGain", 25f);
-            Set(turtle, "zoneProbeRadius", 0.05f);
+            Set(turtle, "zoneProbeRadius", 0.06f);
 
             // ---- nest mates
             var sibs = new List<Object>();
             for (int i = 0; i < 4; i++)
             {
                 float a = i / 4f * Mathf.PI * 2 + 0.6f;
-                Vector3 p = G(nest.position.x + Mathf.Cos(a) * 0.28f, nest.position.z + Mathf.Sin(a) * 0.28f);
+                Vector3 p = G(nest.position.x + Mathf.Cos(a) * 0.42f, nest.position.z + Mathf.Sin(a) * 0.42f);
                 var sib = Child(nest, "Sibling" + i);
                 sib.transform.SetPositionAndRotation(p, Quaternion.Euler(0, Rand(-50, 50), 0));
+                sib.transform.localScale = Vector3.one * HatchlingScale;
                 var m = Model(Art + "/Models/Hatchling.fbx", sib.transform, "Mesh");
                 Remap(m, M);
                 OrientByChild(m, "Head");
+                PoseHatchling(sib.transform, m);
                 var av = sib.AddComponent<HatchlingAvatar>();
                 WireAvatar(av, m);
                 var hs = sib.AddComponent<HatchlingSibling>();
@@ -1257,6 +1307,7 @@ namespace SameShore.EditorTools
             Set(switcher, "playerRoot", rigRoot);
             Set(switcher, "head", rig.centerEyeAnchor);
             Set(switcher, "turtleScale", 0.05f);
+            Set(switcher, "eyeAnchor", eyeAnchor);
             GameObject interactionRig = Find("[BuildingBlock] OVRComprehensiveInteractionRig");
             Set(switcher, "humanOnlyObjects", new Object[] { Find("HumanSeaBarrier"), interactionRig });
 
@@ -1290,9 +1341,20 @@ namespace SameShore.EditorTools
             Set(hunt, "sea", seaPoint);
             Set(hunt, "shadowMaterial", M["GroundDecal"]);
             Set(hunt, "ringMaterial", M["WarningRing"]);
+            var ts = systems.gameObject.AddComponent<TurtleStory>();
+            var vitality = systems.gameObject.AddComponent<TurtleVitality>();
+            Set(vitality, "turtle", turtle);
+            Set(vitality, "garland", story.garland);
+            Set(hunt, "vitality", vitality);
             var hearing = systems.gameObject.AddComponent<TurtleHearing>();
             Set(hearing, "music", story.music);
-            var ts = systems.gameObject.AddComponent<TurtleStory>();
+            Set(hearing, "ambient", audio);
+            // narrative triggers across the corridor (the way to the sea always crosses them)
+            Set(hearing, "musicZone", CorridorTrigger("MusicZone", 11.6f, 1.4f));
+            Set(ts, "gullZone1", CorridorTrigger("GullZone1", 13.2f, 0.8f));
+            Set(ts, "gullZone2", CorridorTrigger("GullZone2", 5.75f, 0.8f));
+            Set(ts, "jellyZone", CorridorTrigger("JellyfishZone", BagLandXY.y + 1.1f, 0.6f));
+            Set(ts, "vitality", vitality);
             Set(ts, "turtle", turtle);
             Set(ts, "nest", nest);
             Set(ts, "sea", seaPoint);
@@ -1506,9 +1568,10 @@ namespace SameShore.EditorTools
             ca.postExposure.Override(0.15f);
             ca.colorFilter.Override(new Color(1.03f, 0.99f, 0.92f));   // warm holiday light on the pale sand
             var bloom = Add<Bloom>(p);
-            bloom.intensity.Override(0.55f);
-            bloom.threshold.Override(1.05f);
-            bloom.scatter.Override(0.6f);
+            bloom.intensity.Override(0.8f);      // the festoon glows at night; daylight stays below the threshold
+            bloom.threshold.Override(1.1f);
+            bloom.scatter.Override(0.68f);
+            bloom.tint.Override(new Color(1f, 0.9f, 0.78f));
             var tm = Add<Tonemapping>(p);
             tm.mode.Override(TonemappingMode.Neutral);
             EditorUtility.SetDirty(p);
@@ -1527,9 +1590,10 @@ namespace SameShore.EditorTools
             ca.colorFilter.Override(new Color(0.96f, 0.98f, 1.06f));
             // artificial lights become big glowing points for the hatchling
             var hb = Add<Bloom>(p);
-            hb.intensity.Override(1.1f);
-            hb.threshold.Override(0.9f);
-            hb.scatter.Override(0.72f);
+            hb.intensity.Override(1.6f);         // from 8 cm, the bulbs are huge, swollen suns
+            hb.threshold.Override(0.85f);
+            hb.scatter.Override(0.8f);
+            hb.tint.Override(new Color(1f, 0.86f, 0.7f));
             var mix = Add<ChannelMixer>(p);
             mix.blueOutRedIn.Override(6f);
             mix.blueOutBlueIn.Override(104f);

@@ -26,8 +26,29 @@ namespace SameShore
         [SerializeField] private Channel[] channels;
         [SerializeField] private float crossfadeSeconds = 2.5f;
 
+        float[] _base;
+        float _waveDuck = 1f, _waveDuckTarget = 1f;
+
+        /// <summary>Lowers the sea (channels whose name starts with "Waves") while the human's music dominates.</summary>
+        public void DuckWaves(float factor) => _waveDuckTarget = Mathf.Clamp01(factor);
+        public float WaveDuck => _waveDuck;
+
+        void LateUpdate()
+        {
+            if (_base == null) return;
+            _waveDuck = Mathf.MoveTowards(_waveDuck, _waveDuckTarget, Time.unscaledDeltaTime * 0.25f);   // slow, never abrupt
+            for (int i = 0; i < channels.Length; i++)
+            {
+                var c = channels[i];
+                if (c.source == null) continue;
+                bool wave = c.name != null && c.name.StartsWith("Waves");
+                c.source.volume = _base[i] * (wave ? _waveDuck : 1f);
+            }
+        }
+
         void Awake()
         {
+            _base = new float[channels.Length];
             foreach (var c in channels)
             {
                 if (c.source == null) continue;
@@ -67,7 +88,7 @@ namespace SameShore
             for (int i = 0; i < channels.Length; i++)
             {
                 if (channels[i].source == null) continue;
-                startVol[i] = channels[i].source.volume;
+                startVol[i] = _base != null ? _base[i] : channels[i].source.volume;
                 startLp[i] = channels[i].filter.cutoffFrequency;
                 if (!channels[i].source.isPlaying && channels[i].source.clip != null) channels[i].source.Play();
             }
@@ -86,7 +107,7 @@ namespace SameShore
             {
                 var c = channels[i];
                 if (c.source == null) continue;
-                c.source.volume = Mathf.Lerp(v0[i], hatch ? c.hatchlingVolume : c.humanVolume, k);
+                _base[i] = Mathf.Lerp(v0[i], hatch ? c.hatchlingVolume : c.humanVolume, k);
                 // interpolate the cutoff logarithmically so the muffling sounds natural
                 float target = hatch ? c.hatchlingLowpass : c.humanLowpass;
                 c.filter.cutoffFrequency = Mathf.Exp(Mathf.Lerp(Mathf.Log(Mathf.Max(10, lp0[i])), Mathf.Log(target), k));

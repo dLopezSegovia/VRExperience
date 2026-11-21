@@ -122,6 +122,7 @@ namespace SameShore
             Vector3 upv = along.normalized;
             Vector3 f = Vector3.ProjectOnPlane(fwd, upv);
             if (f.sqrMagnitude < 1e-6f) f = Vector3.ProjectOnPlane(Vector3.forward, upv);
+            if (f.sqrMagnitude < 1e-6f) f = Vector3.ProjectOnPlane(Vector3.right, upv);
             t.SetPositionAndRotation(from, Quaternion.LookRotation(f.normalized, upv));
             Vector3 s = t.localScale;
             s.y = stretch;

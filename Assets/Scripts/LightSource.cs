@@ -66,6 +66,10 @@ public class LightSource : MonoBehaviour
             Vector3 dir = source.transform.position - position;
             dir.y = 0f;
             if (dir.sqrMagnitude < 0.0001f) continue;
+            // a light hanging right overhead has no direction for the hatchling: its pull fades out underneath
+            // (otherwise it would circle below the bulb forever instead of being able to crawl away)
+            value *= Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 1.4f, dir.magnitude));
+            if (value <= 0f) continue;
             net += dir.normalized * value;
             total += value;
             if (source.artificial) art += value;

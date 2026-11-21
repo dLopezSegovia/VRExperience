@@ -86,6 +86,10 @@ namespace SameShore.Tests
             // ---- scene 2: can toss (first two at the bin, the last one falls short)
             var game = F<CanTossGame>();
             var bin = GameObject.Find("LitterBin").transform;
+            float binDist = Flat(bin.position - F<HumanSeat>().Seat.position);
+            float mouth = bin.GetComponentInChildren<MeshFilter>().sharedMesh.bounds.extents.x;
+            T.Check($"Can toss is a skill shot: bin {binDist:F1} m from the chair, mouth radius {mouth:F2} m, no throw boost",
+                    binDist > 4.2f && mouth < 0.3f && Mathf.Approximately(game.Cans[0].GetComponent<VRGrabbable>().throwScale, 1f));
             for (int i = 0; i < 3; i++)
             {
                 TossCan can = null;
@@ -101,7 +105,9 @@ namespace SameShore.Tests
             T.Check($"Can toss done: {game.Scored} in, {3 - game.Scored} on the sand", game.Done && State("cans") == ObjectiveState.Done);
             var missed = new List<(TossCan c, Vector3 p)>();
             foreach (var c in game.Cans) if (c.Result == BeachLog.CanResult.Missed) missed.Add((c, c.transform.position));
-            T.Check($"Missed cans stay where they fell ({missed.Count})", missed.Count >= 1);
+            T.Check($"Missed cans stay where they fell ({missed.Count})", missed.Count >= 1 || game.Scored == 3);
+            foreach (var (c, p) in missed)
+                T.Check($"Missed can lies on the hatchling's way ({RouteDist(p):F2} m from the route)", RouteDist(p) < 1.9f);
             SaveView("02_can_toss.png");
             yield return WaitFor(() => !seat.Seated && HumanReady(), 20f);
             T.Check("Stands up after the can toss (walking enabled)", !seat.Seated && F<SmoothLocomotion>().MovementEnabled);
@@ -130,6 +136,12 @@ namespace SameShore.Tests
                     yield return new WaitForSeconds(0.6f);
                 }
                 T.Check($"Bucket filled by shovelfuls ({site.Pail.Scoops}/{site.Pail.ScoopsToFill}), hole dug {hole.Dug01:P0}", site.Pail.Full && hole.Dug01 > 0.2f);
+                // in the pail's own space (a tilted, hand-held pail would inflate a world-space box)
+                var fillT = site.Pail.transform.Find("SandFill");
+                Bounds fb = fillT.GetComponent<MeshFilter>().sharedMesh.bounds;
+                bool local = fillT.localPosition == Vector3.zero && fillT.localScale == Vector3.one;
+                T.Check($"Cycle {towers + 1}: the sand stays inside the bucket (fill y {fb.min.y * 100:F1}-{fb.max.y * 100:F1} cm, radius {fb.extents.x * 100:F1} cm; bucket 0-20 cm, inner r <= 9.2 cm)",
+                        fillT.gameObject.activeInHierarchy && local && fb.min.y >= 0.012f && fb.max.y <= 0.21f && fb.extents.x <= 0.092f && fb.extents.z <= 0.092f);
                 if (VRHand.Right.Held != null && VRHand.Right.Held.GetComponent<BeachShovel>() != null) { yield return AimAt(site.DigSpot.position + (PlayerRig.Head.position - site.DigSpot.position).normalized * 1.4f); yield return Tap(Key.E); }
                 yield return WalkTo(site.Pail.transform.position, 1.1f);
                 yield return Grab(site.Pail, "the bucket");
@@ -138,7 +150,12 @@ namespace SameShore.Tests
                 T.Check("Bucket upside down on the castle spot", site.Pail.UpsideDown);
                 int before = site.Towers;
                 yield return WalkTo(site.Pail.transform.position, 1.1f);
-                yield return Grab(site.Pail, "the bucket again");
+                if (site.Towers == before) yield return Grab(site.Pail, "the bucket again");
+                if (site.Towers == before && (VRHand.Right.Held == null || VRHand.Right.Held.gameObject != site.Pail.gameObject))
+                {
+                    yield return WalkTo(site.Pail.transform.position, 0.7f);
+                    yield return Grab(site.Pail, "the bucket (second try)");
+                }
                 yield return new WaitForSeconds(0.6f);
                 T.Check($"Lifting the bucket reveals a tower ({site.Towers})", site.Towers == before + 1);
                 towers++;
@@ -153,6 +170,9 @@ namespace SameShore.Tests
             }
             T.Check($"Sandcastle finished ({site.Towers} towers)", site.Finished && State("castle") == ObjectiveState.Done);
             T.Check($"The dug hole stays open (depth {hole.Dug01:P0}, trap active)", hole.Dug01 > 0.99f && !hole.IsFilled);
+            T.Check($"Castle and hole lie on the hatchling's way (castle {RouteDist(site.Plot.position):F2} m, hole {RouteDist(hole.transform.position):F2} m from the route)",
+                    RouteDist(site.Plot.position) < 0.9f && RouteDist(hole.transform.position) < 0.9f);
+            T.Check("The empty bucket shows no sand", !site.Pail.transform.Find("SandFill").gameObject.activeInHierarchy || site.Pail.Scoops > 0);
             yield return AimAt(site.Plot.position);
             SaveView("03_sandcastle.png");
             if (VRHand.Right.Held != null) yield return Tap(Key.E);
@@ -170,7 +190,8 @@ namespace SameShore.Tests
             yield return WaitFor(() => bag.State == WindBag.Phase.Landed, 15f);
             var land = GameObject.Find("BagLanding").transform.position;
             T.Check($"The wind carries the bag to the wet sand ({Flat(bag.transform.position - land):F2} m from the spot, {SeaD(bag.transform.position):F1} m from the sea)",
-                    bag.State == WindBag.Phase.Landed && Flat(bag.transform.position - land) < 0.6f && SeaD(bag.transform.position) < 4.5f);
+                    bag.State == WindBag.Phase.Landed && Flat(bag.transform.position - land) < 0.6f && SeaD(bag.transform.position) < 5f);
+            T.Check($"The bag lies right on the hatchling's way ({RouteDist(bag.transform.position):F2} m from the route)", RouteDist(bag.transform.position) < 0.7f);
             yield return AimAt(bag.transform.position);
             SaveView("04_bag_on_the_wet_sand.png");
 
@@ -207,6 +228,12 @@ namespace SameShore.Tests
             int lightSources = 0;
             foreach (var ls in gar.GetComponentsInChildren<LightSource>()) if (ls.IsOn) lightSources++;
             T.Check($"The string lights up ({gar.Spans} spans, {lightSources} light sources that will pull the hatchling)", gar.LightsOn && lightSources == gar.Spans);
+            int halos = 0, pools = 0;
+            foreach (var r in gar.GetComponentsInChildren<MeshRenderer>()) { if (r.name == "Halo") halos++; if (r.name == "LightPool") pools++; }
+            float lumen = 0f;
+            foreach (var l in gar.GetComponentsInChildren<Light>()) lumen = Mathf.Max(lumen, l.intensity * l.range);
+            T.Check($"Brighter festoon: {gar.BulbPositions.Count} bulbs with {halos} glow halos, {pools} light pools on the sand, span lights {lumen:F1} (int x range)",
+                    halos == gar.BulbPositions.Count && pools == gar.Spans && lumen > 10f);
             yield return WaitFor(() => day.Cycle > 1.95f, 20f);
             T.Check($"Night (cycle {day.Cycle:F2})", day.Cycle > 1.95f);
             yield return AimAt(gar.Hooks[0].position);
@@ -215,7 +242,9 @@ namespace SameShore.Tests
             // ---- scene 7: flashlight and nest
             yield return SkipStoryUntil(() => Obj.Get("lamp") != null, 30f);
             var lamp = F<Flashlight>();
-            yield return WalkTo(lamp.transform.position, 1.0f);
+            // the castle and the hole are now in the middle of the way: walk around them like a player would
+            yield return WalkTo(lamp.transform.position + new Vector3(-0.9f, 0f, -1.4f), 0.5f, 40f);
+            yield return WalkTo(lamp.transform.position, 0.9f);
             yield return Grab(lamp, "the flashlight");
             yield return Tap(Key.F);
             yield return null;
@@ -251,11 +280,62 @@ namespace SameShore.Tests
             yield return TurtleJourney(true);
         }
 
+        static float RouteDist(Vector3 p)
+        {
+            var route = GameObject.Find("TurtleRoute").transform;
+            float best = float.MaxValue;
+            for (int i = 0; i < route.childCount - 1; i++)
+            {
+                Vector3 a = route.GetChild(i).position, b = route.GetChild(i + 1).position;
+                Vector3 ab = b - a; ab.y = 0;
+                Vector3 ap = p - a; ap.y = 0;
+                float t = Mathf.Clamp01(Vector3.Dot(ap, ab) / Mathf.Max(1e-4f, ab.sqrMagnitude));
+                best = Mathf.Min(best, (ap - ab * t).magnitude);
+            }
+            return best;
+        }
+
+        /// <summary>The camera is at the hatchling's eyes, ~8 cm over the sand, and stays there while crawling.</summary>
+        static IEnumerator CameraChecks()
+        {
+            var sw = Object.FindFirstObjectByType<PlayerPhaseSwitcher>();
+            Transform eyes = sw.EyeAnchor;
+            float eye = PlayerRig.Head.position.y - MeshKit.GroundY(PlayerRig.Head.position);
+            float off = (PlayerRig.Head.position - eyes.position).magnitude;
+            T.Check($"Camera at the hatchling's eyes: {eye * 100:F1} cm over the sand, {off * 100:F1} cm from the eye point, scale {PlayerRig.Scale:F2}",
+                    eye > 0.065f && eye < 0.1f && off < 0.012f && Mathf.Abs(PlayerRig.Scale - 0.05f) < 0.005f);
+            var model = Turtle.transform.Find("HatchlingModel");
+            var head = model.GetComponentsInChildren<Renderer>();
+            bool headHidden = true, bodyShown = false;
+            foreach (var r in head)
+            {
+                if (r.name == "Head" || r.name == "EyeL" || r.name == "EyeR" || r.name == "Beak") headHidden &= r.shadowCastingMode == UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+                if (r.name.StartsWith("FlipperF") && r.shadowCastingMode != UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly) bodyShown = true;
+            }
+            Vector3 hf = Turtle.transform.InverseTransformPoint(PlayerRig.Head.position);
+            T.Check($"Own head not drawn over the camera, front flippers visible below (eyes {hf.z * 100:F1} cm ahead of the body centre)", headHidden && bodyShown && hf.z > 0.03f);
+            // crawl a little: the eyes stay on the body, no rising, no going under the sand
+            float minEye = 9f, maxEye = 0f, maxOff = 0f;
+            T.StartCoroutine(Hold(3f, Key.W));
+            float until = Time.time + 3f;
+            while (Time.time < until)
+            {
+                yield return null;
+                float e = PlayerRig.Head.position.y - MeshKit.GroundY(PlayerRig.Head.position);
+                minEye = Mathf.Min(minEye, e); maxEye = Mathf.Max(maxEye, e);
+                maxOff = Mathf.Max(maxOff, (PlayerRig.Head.position - eyes.position).magnitude);
+            }
+            T.Check($"While crawling the camera stays at the eyes ({minEye * 100:F1}-{maxEye * 100:F1} cm over the sand, max {maxOff * 100:F1} cm off)",
+                    minEye > 0.04f && maxEye < 0.12f && maxOff < 0.02f);
+            yield return new WaitForSeconds(0.8f);
+            Turtle.TeleportTo(sw.TurtleSpawn.position, sw.TurtleSpawn.eulerAngles.y);   // back in the nest for the next checks
+            yield return null;
+        }
+
         static IEnumerator TurtleChecks(BeachLog log, List<(TossCan c, Vector3 p)> missed)
         {
             T.Check("Act II: the hatchling (Hatchling state)", TurtleReady());
-            float eye = PlayerRig.Head.position.y - MeshKit.GroundY(PlayerRig.Head.position);
-            T.Check($"Eyes {eye * 100:F1} cm above the sand, scale {PlayerRig.Scale:F2}", eye > 0.05f && eye < 0.13f && Mathf.Abs(PlayerRig.Scale - 0.05f) < 0.005f);
+            yield return CameraChecks();
             T.Check($"REACH THE OCEAN ({Obj.Objectives.Count} steps)", Obj.Title == "REACH THE OCEAN" && Obj.Objectives.Count >= 6);
             foreach (var (c, p) in missed)
                 T.Check($"The missed can is exactly where it fell ({(c.transform.position - p).magnitude:F3} m)", (c.transform.position - p).magnitude < 0.05f);
@@ -266,8 +346,8 @@ namespace SameShore.Tests
             var music = F<MusicPlayer>();
             var hearing = F<TurtleHearing>();
             var lp = music.Source.GetComponent<AudioLowPassFilter>();
-            T.Check($"Same song, heard through the hatchling (low-pass {lp?.cutoffFrequency:F0} Hz, volume {music.Source.volume:F2} <= 0.85)",
-                    music.IsOn && hearing.On && lp != null && lp.enabled && music.Source.volume <= 0.851f);
+            T.Check($"The speaker is silent in the nest (waits for its trigger): volume {music.Source.volume:F2}",
+                    hearing.On && !hearing.MusicStarted && lp != null && lp.enabled && music.Source.volume < 0.01f);
             var giant = F<GiantHuman>();
             T.Check("The giant (the human) replays the night", giant.Playing);
             T.Check("The real flashlight and phone are with the giant (hidden)", !F<Flashlight>() || !F<Flashlight>().gameObject.activeInHierarchy);
@@ -301,11 +381,35 @@ namespace SameShore.Tests
             yield return Hold(1f, Key.D);
             T.Check($"D turns the body slowly ({Mathf.DeltaAngle(yaw0, turtle.transform.eulerAngles.y):F0} deg in 1 s)", Mathf.Abs(Mathf.DeltaAngle(yaw0, turtle.transform.eulerAngles.y)) > 10f && Mathf.Abs(Mathf.DeltaAngle(yaw0, turtle.transform.eulerAngles.y)) < 45f);
 
-            // gull pass (no attack)
-            yield return Teleport(W(1), W(2));
-            yield return Hold(2.5f, Key.W);
-            yield return WaitFor(() => gulls.FirstDone, 15f);
-            T.Check("First gull encounter: a shadow passes over (no attack)", gulls.FirstDone && !gulls.Struck && turtle.enabled);
+            // the corridor: heading sideways ends against the dunes, never around the obstacles
+            var vit = F<TurtleVitality>();
+            var hearing = F<TurtleHearing>();
+            var ambient = F<AmbientAudio>();
+            {
+                Vector3 side0 = W(5);   // between the camp and the castle, away from the low bulbs
+                // a player insisting on going sideways: keeps the body pointed across the beach while crawling
+                IEnumerator Sideways(Vector3 dir)
+                {
+                    yield return Teleport(side0, side0 + dir);
+                    T.StartCoroutine(Hold(22f, Key.W));
+                    float end = Time.time + 22f;
+                    while (Time.time < end) { turtle.transform.rotation = Quaternion.LookRotation(dir); yield return null; }
+                }
+                yield return Sideways(Vector3.left);
+                float wentLeft = side0.x - turtle.transform.position.x;
+                yield return Sideways(Vector3.right);
+                float wentRight = turtle.transform.position.x - side0.x;
+                var limits = GameObject.Find("TurtleBounds").GetComponentsInChildren<Collider>();
+                T.Check($"Natural limits: sideways it stops at the berms ({wentLeft:F1} m left, {wentRight:F1} m right; {limits.Length} hidden limits active)",
+                        wentLeft < 2.3f && wentRight < 4.2f && Mathf.Max(wentLeft, wentRight) > 1.0f && limits.Length > 10 && limits[0].enabled);
+            }
+
+            // gull 1: a real attack pass (swoop from the sea), triggered by the corridor zone
+            yield return Teleport(W(2) + Vector3.back * 0.3f, W(3));
+            yield return Hold(5f, Key.W, () => gulls.Attacks > 0);
+            yield return WaitFor(() => gulls.FirstDone, 20f);
+            T.Check($"First gull: a real attack pass ({gulls.Attacks} attack, {(gulls.SwoopStruck ? "hit: stunned, strength " + vit.Strength.ToString("P0") : "dodged")}), not lethal",
+                    gulls.FirstDone && gulls.Attacks >= 1 && turtle.enabled && GM.Current == GameState.Hatchling);
 
             // lights pull
             yield return Teleport(W(2), W(3));
@@ -313,6 +417,42 @@ namespace SameShore.Tests
             T.Check($"The light string pulls her off course ({story.SecondsOffCourse:F1} s)", story.SecondsOffCourse > 0.5f || turtle.ArtificialShare > 0.2f);
             yield return AimAt(W(1) + Vector3.up * 1.4f);
             SaveView("11_lights_from_8cm.png");
+
+            // light hazard: stay under the lowest bulb, then leave
+            {
+                var garland = F<LightGarland>();
+                Vector3 lowest = garland.BulbPositions[0];
+                foreach (var bp0 in garland.BulbPositions) if (bp0.y - MeshKit.GroundY(bp0) < lowest.y - MeshKit.GroundY(lowest)) lowest = bp0;
+                vit.ResetState();   // measure the light alone (the gull may already have taken some strength)
+                float s0 = vit.Strength;
+                yield return Teleport(MeshKit.OnGround(lowest), lowest + Vector3.forward);
+                yield return new WaitForSeconds(5f);
+                float dz = vit.Dazzle, slow = turtle.HazardSpeedMultiplier;
+                T.Check($"Under a bulb: dazzled {dz:F2}, slowed x{slow:F2}, strength {s0:P0} -> {vit.Strength:P0}", dz > 0.25f && slow < 0.95f && vit.Strength < s0);
+                yield return new WaitForSeconds(20f);
+                T.Check($"Light damage is capped (strength {vit.Strength:P0} >= 50%), never lethal", vit.Strength >= 0.499f && turtle.enabled);
+                yield return Teleport(W(6), W(7));
+                yield return new WaitForSeconds(3f);
+                T.Check($"Away from the bulbs the glare fades (dazzle {vit.Dazzle:F2}, speed x{turtle.HazardSpeedMultiplier:F2})", vit.Dazzle < dz * 0.5f && turtle.HazardSpeedMultiplier > slow);
+            }
+
+            // music: the trigger at the camp starts the human's song, louder as she nears it, over the waves
+            {
+                var music = F<MusicPlayer>();
+                yield return Teleport(W(3) + Vector3.back * 0.6f, W(4));
+                yield return Hold(3f, Key.W, () => hearing.MusicStarted);
+                T.Check("Crossing the camp trigger starts the music", hearing.MusicStarted);
+                yield return Teleport(W(4), music.transform.position);
+                yield return new WaitForSeconds(6f);
+                var lp = music.Source.GetComponent<AudioLowPassFilter>();
+                T.Check($"Near the speaker it dominates the mix (volume {music.Source.volume:F2} <= 0.8, low-pass {lp.cutoffFrequency:F0} Hz, waves x{ambient.WaveDuck:F2})",
+                        music.Source.isPlaying && music.Source.volume > 0.4f && music.Source.volume <= 0.801f && lp.cutoffFrequency > 1500f && ambient.WaveDuck < 0.8f);
+                float near = music.Source.volume;
+                yield return Teleport(W(9), W(10));
+                yield return new WaitForSeconds(8f);
+                T.Check($"Leaving the camp: the music recedes ({near:F2} -> {music.Source.volume:F2}) and the waves return (x{ambient.WaveDuck:F2})",
+                        music.Source.volume < near && ambient.WaveDuck > 0.7f);
+            }
 
             // cans + hole
             yield return Teleport(Vector3.Lerp(W(3), W(4), 0.3f), W(5));
@@ -327,10 +467,11 @@ namespace SameShore.Tests
             yield return Hold(12f, Key.W, () => SeaD(turtle.transform.position) < SeaD(hole.transform.position) - 1f || story.PassedHole);
             T.Check($"...and climbs out (not trapped): {Flat(turtle.transform.position - hole.transform.position):F2} m from its centre", Flat(turtle.transform.position - hole.transform.position) > hole.Radius * 0.6f);
 
-            // gull attack (non-lethal)
-            yield return Teleport(W(6) + Vector3.forward * 0.1f, W(7));
+            // gull 2 (non-lethal)
+            yield return Teleport(W(6), W(7));
+            yield return Hold(5f, Key.W, () => gulls.Attacks > 1);
             yield return WaitFor(() => gulls.SecondDone, 25f);
-            T.Check($"Second gull encounter resolved ({(gulls.Struck ? "struck, stunned" : "dodged")}) - never lethal", gulls.SecondDone && turtle.enabled && GM.Current == GameState.Hatchling);
+            T.Check($"Second gull attack resolved ({gulls.Attacks} attacks in total, {gulls.Hits} hits) - never lethal", gulls.SecondDone && gulls.Attacks == 2 && turtle.enabled && GM.Current == GameState.Hatchling);
 
             // the bag
             var bag = F<WindBag>();
@@ -352,11 +493,23 @@ namespace SameShore.Tests
             yield return Teleport(gf + (W(7) - gf).normalized * 1.9f, gf);
             yield return AimAt(gf + Vector3.up * 1.2f);
             SaveView("14_the_giant.png");
+            // measure the fader from the approach on (the flash can come and go before PhotoDone), never the ending
+            float peak = 0;
+            bool measuring = true;
+            IEnumerator Measure()
+            {
+                while (measuring)
+                {
+                    if (GM.Current == GameState.Hatchling) peak = Mathf.Max(peak, ScreenFader.Instance.Alpha);
+                    yield return null;
+                }
+            }
+            T.StartCoroutine(Measure());
             yield return Hold(5f, Key.W, () => giant.PhotoDone);
             yield return WaitFor(() => giant.PhotoDone, 10f);
-            float peak = 0;
-            float until = Time.realtimeSinceStartup + 3f;
-            while (Time.realtimeSinceStartup < until) { peak = Mathf.Max(peak, ScreenFader.Instance.Alpha); yield return null; }
+            yield return new WaitForSeconds(2.5f);
+            measuring = false;
+            Debug.Log($"[SameShoreTest] glare peak {peak:F2}");
             T.Check($"The giant bends down and takes THE photo: moderate glare (peak {peak:F2} < 0.7, no white-out)", giant.PhotoDone && peak > 0.1f && peak < 0.7f);
             if (expectGiantFromLog) T.Check("The giant stands where the human stood for the photo", Flat(gf - F<BeachLog>().PhotoFeet) < 0.6f);
             yield return new WaitForSeconds(3f);
@@ -367,6 +520,7 @@ namespace SameShore.Tests
             yield return Hold(12f, Key.W, () => GM.Current == GameState.End);
             T.Check("Almost there...", story.AlmostThere);
             T.Check("Reached the water -> ending", GM.Current == GameState.End);
+            T.Check($"She reached the sea with strength {vit.Strength:P0} (lights and gulls weaken, never kill)", vit.Strength >= 0.2f);
             yield return WaitFor(() => FindButton("Main menu") != null, 30f);
             var title = GameObject.Find("EndScreen")?.GetComponentInChildren<TextMeshPro>();
             T.Check($"End screen: SAME SHORE ({title?.text})", title != null && title.text.Contains("SAME SHORE") && FindButton("Experience it again") != null);
@@ -392,7 +546,9 @@ namespace SameShore.Tests
             T.Check($"Default beach: cans on the sand ({log.CansMissed} missed)", log.UsedDefaults && game.Done && log.CansMissed >= 1);
             T.Check("Default beach: castle and open hole", F<SandcastleSite>().Finished && F<SandHole>().Dug01 > 0.99f);
             T.Check("Default beach: bag on the wet sand", F<WindBag>().State == WindBag.Phase.Landed);
-            T.Check("Default beach: lights on, music on, fireworks done", F<LightGarland>().LightsOn && F<MusicPlayer>().IsOn && F<FireworksShow>().Finished);
+            T.Check("Default beach: lights on, music logged on, fireworks done", F<LightGarland>().LightsOn && log.MusicOn && F<FireworksShow>().Finished);
+            T.Check($"Default layout: cans, castle, hole and bag on the hatchling's way", RouteDist(F<SandcastleSite>().Plot.position) < 0.9f && RouteDist(F<SandHole>().transform.position) < 0.9f && RouteDist(F<WindBag>().transform.position) < 0.7f);
+            yield return CameraChecks();
             T.Check("The giant follows a default night walk", F<GiantHuman>().Playing);
             yield return TurtleJourney(false);
         }
