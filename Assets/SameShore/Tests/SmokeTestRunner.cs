@@ -6,7 +6,7 @@ namespace SameShore.Tests
 {
     /// <summary>
     /// Play-mode test runner (added by SameShoreSmokeTest in batch mode, never saved in the scene).
-    /// Scenario from Logs/SameShoreSmokeMode.txt: "clean" (default), "dirty" or "xr". Writes
+    /// Scenario from Logs/SameShoreSmokeMode.txt: "full" (default), "turtle", "human" or "xr". Writes
     /// Logs/SameShoreSmokeTest.txt and exits the Editor with 0 (all passed) or 2.
     /// </summary>
     public class SmokeTestRunner : MonoBehaviour
@@ -23,16 +23,17 @@ namespace SameShore.Tests
             _running = this;
             yield return new WaitForSeconds(1.5f);
             string modeFile = System.IO.Path.Combine(Application.dataPath, "../Logs/SameShoreSmokeMode.txt");
-            string mode = System.IO.File.Exists(modeFile) ? System.IO.File.ReadAllText(modeFile).Trim() : "clean";
+            string mode = System.IO.File.Exists(modeFile) ? System.IO.File.ReadAllText(modeFile).Trim() : "full";
             Check("GameManager starts in Intro (menu)", GameManager.Instance != null && GameManager.Instance.Current == GameState.Intro);
             Check("Start menu is visible", GameObject.Find("StartMenu") != null);
             Debug.Log("[SameShoreTest] scenario: " + mode);
-            StartCoroutine(Watchdog(420f));
+            StartCoroutine(Watchdog(mode == "full" ? 900f : 600f));
             switch (mode)
             {
-                case "dirty": yield return StoryTests.Dirty(this); break;
+                case "turtle": yield return StoryTests.TurtleOnly(this); break;
+                case "human": yield return StoryTests.HumanOnly(this); break;
                 case "xr": yield return StoryTests.Xr(this); break;
-                default: yield return StoryTests.Clean(this); break;
+                default: yield return StoryTests.Full(this); break;
             }
         }
 

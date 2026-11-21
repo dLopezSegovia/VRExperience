@@ -16,7 +16,8 @@ namespace SameShore.EditorTools
         static readonly string[] Optional =
         {
             "lensRenderer", "lensOnMaterial", "lensOffMaterial", "clickSound", "head", "playerRoot", "humanOnlyBehaviours",
-            "controller", "body", "terrain", "disableWhenFilled", "chair", "menuSpot", "_data", "_grabSource", "_movementProvider"
+            "controller", "body", "terrain", "disableWhenFilled", "chair", "menuSpot", "_data", "_grabSource", "_movementProvider",
+            "grabbable", "sunArc", "swash"
         };
 
         [MenuItem("Same Shore/Validate Scene")]

@@ -37,6 +37,8 @@ namespace SameShore
         public static bool Active { get; private set; }
         public static DesktopTestingMode Instance { get; private set; }
         public float MouseSensitivity => mouseSensitivity;
+        /// <summary>Camera height above the player's floor (lowered while sitting on the beach chair).</summary>
+        public float EyeHeight { get => eyeHeight; set => eyeHeight = value; }
         public float Yaw { get; private set; }
         public float Pitch { get; private set; }
         public EventSystem EventSystem { get; private set; }
@@ -83,7 +85,6 @@ namespace SameShore
             Debug.Log("[SameShore] Desktop Testing mode ON (no XR device). WASD + mouse, LMB/E grab, RMB/F use, Esc frees the cursor.");
             SetupCamera();
             SetupEventSystem();
-            if (GetComponent<DesktopInteractor>() == null) gameObject.AddComponent<DesktopInteractor>();
         }
 
         void SetupCamera()
@@ -240,16 +241,16 @@ namespace SameShore
             {
                 var c = new GUIStyle(style) { fontSize = 22, alignment = TextAnchor.MiddleCenter };
                 GUI.Label(new Rect(Screen.width / 2f - 20, Screen.height / 2f - 20, 40, 40), "+", c);
-                var interactor = GetComponent<DesktopInteractor>();
-                if (interactor != null && !string.IsNullOrEmpty(interactor.Prompt))
+                string prompt = VRHand.DesktopPrompt;
+                if (!string.IsNullOrEmpty(prompt))
                 {
                     var p = new GUIStyle(style) { alignment = TextAnchor.UpperCenter };
-                    GUI.Label(new Rect(Screen.width / 2f - 200, Screen.height / 2f + 18, 400, 40), interactor.Prompt, p);
+                    GUI.Label(new Rect(Screen.width / 2f - 260, Screen.height / 2f + 18, 520, 40), prompt, p);
                 }
             }
             string help = GameManager.Instance != null && GameManager.Instance.Current == GameState.Hatchling
                 ? "DESKTOP TESTING · W/S crawl · A/D turn body · Space burst · mouse look · Esc free cursor"
-                : "DESKTOP TESTING · WASD walk · mouse look · LMB/E grab-drop · RMB/F use (flashlight, tip bucket) · hold Enter: end night · Esc free cursor";
+                : "DESKTOP TESTING · WASD walk · mouse look · LMB/E grab, throw, press · RMB/F use the held object · Esc pause / free cursor";
             if (!locked && !UIPanel.AnyInteractiveVisible) help += "   ·   CLICK THE VIEW TO CAPTURE THE MOUSE";
             GUI.Label(new Rect(10, Screen.height - 26, Screen.width - 20, 24), help, style);
         }

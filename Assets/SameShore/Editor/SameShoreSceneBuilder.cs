@@ -17,7 +17,7 @@ namespace SameShore.EditorTools
     /// untouched). Idempotent: run it again after changing SampleScene or this script.
     /// Menu: Same Shore / Build Scene. Batch: -executeMethod SameShore.EditorTools.SameShoreSceneBuilder.BuildBatch
     /// </summary>
-    public static class SameShoreSceneBuilder
+    public static partial class SameShoreSceneBuilder
     {
         const string SourceScene = "Assets/Scenes/SampleScene.unity";
         const string TargetScene = Root + "/Scenes/SameShore.unity";
@@ -36,8 +36,10 @@ namespace SameShore.EditorTools
         public static void Build()
         {
             M.Clear();
+            _meshes.Clear();
             ConfigureImporters();
             CreateMaterials();
+            CreateStoryMaterials();
             SameShoreAssets assets = CreateAssetsObject();
 
             EnsureFolder(Root + "/Scenes");
@@ -68,7 +70,8 @@ namespace SameShore.EditorTools
             var gulls = BuildGulls();
             BuildHotel();
             var audio = BuildAudio(systems);
-            WireSystems(systems, nest, props, footprints, gulls, audio);
+            var story = BuildStory(systems, nest, props);
+            WireSystems(systems, nest, props, footprints, gulls, audio, story);
 
             EditorSceneManager.MarkSceneDirty(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
             EditorSceneManager.SaveScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene());
@@ -354,6 +357,14 @@ namespace SameShore.EditorTools
             a.turtleTrack = SavePng("TurtleTrack", ProceduralArt.TurtleTrack(), true, true);
             a.pebbles = AssetDatabase.LoadAllAssetsAtPath(Art + "/Models/Pebbles.fbx").OfType<Mesh>().ToArray();
             a.pebble = M["Pebble"];
+            a.clips = AssetDatabase.FindAssets("t:AudioClip", new[] { Root + "/Audio" })
+                .Select(g => AssetDatabase.LoadAssetAtPath<AudioClip>(AssetDatabase.GUIDToAssetPath(g))).Where(c => c != null).ToArray();
+            a.ringTexture = SavePng("SafeZoneRing", ProceduralArt.Ring(), true, true);
+            a.bulbOn = M["BulbOn"];
+            a.bulbOff = M["BulbOff"];
+            a.cable = M["Cable"];
+            a.fireworkParticle = M["Firework"];
+            a.sandCastle = M["Sandcastle"];
             EditorUtility.SetDirty(a);
             foreach (string guid in AssetDatabase.FindAssets("t:AudioClip", new[] { Root + "/Audio" }))
             {
@@ -389,13 +400,8 @@ namespace SameShore.EditorTools
 
             // starry night sky from the project's CC0 HDRI (the team's procedural skybox material stays untouched;
             // its sun disc would otherwise draw a full moon where the moonlight comes from)
-            Texture hdr = AssetDatabase.LoadAssetAtPath<Texture>("Assets/Skybox/qwantani_night_puresky_1k.hdr");
-            var sky = SaveMat("SkyboxNight_SameShore", Shader.Find("Skybox/Panoramic"));
-            sky.SetTexture("_MainTex", hdr);
-            sky.SetFloat("_Exposure", 0.32f);
-            sky.SetFloat("_Rotation", 200f);
-            sky.SetColor("_Tint", new Color(0.36f, 0.4f, 0.52f));
-            RenderSettings.skybox = sky;
+            // day -> sunset -> night sky (the night half uses the project's CC0 starry HDRI); DayCycle drives it
+            RenderSettings.skybox = M["Sky"];
 
             // crescent moon low over the sea; the moonlight comes from the same side, a bit higher so the
             // cove cliffs do not throw the whole beach into shadow
@@ -412,10 +418,12 @@ namespace SameShore.EditorTools
                 l.shadowStrength = 0.75f;
                 RenderSettings.sun = l;
             }
-            var moonQuad = Prim(PrimitiveType.Quad, "CrescentMoon", _env, new Vector3(cx, 0, zs) + moonDir * 900f,
+            _moonQuad = Prim(PrimitiveType.Quad, "CrescentMoon", _env, new Vector3(cx, 0, zs) + moonDir * 900f,
                                 Vector3.one * 55f, M["Moon"], false, Quaternion.LookRotation(moonDir) * Quaternion.Euler(0, 0, -25));
-            moonQuad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
+            _moonQuad.GetComponent<MeshRenderer>().shadowCastingMode = ShadowCastingMode.Off;
         }
+
+        static GameObject _moonQuad, _ocean, _swash;
 
         // ================================================================== existing scene objects
         static void PrepareExistingObjects()
@@ -456,7 +464,7 @@ namespace SameShore.EditorTools
         static Transform BuildNest()
         {
             var nest = Child(_env, "TurtleNest").transform;
-            nest.position = L(0, 18f);
+            nest.position = LX(NestXY);
             float r = 0.85f;
             var posts = new List<Vector3>();
             for (int i = 0; i < 8; i++)
@@ -543,7 +551,7 @@ namespace SameShore.EditorTools
         // ================================================================== sea
         static void BuildSea()
         {
-            var ocean = new GameObject("Ocean");
+            var ocean = _ocean = new GameObject("Ocean");
             ocean.transform.SetParent(_env, false);
             ocean.transform.position = new Vector3(cx, WaterLevel, zs);
             ocean.AddComponent<MeshFilter>().sharedMesh = SaveMesh("OceanGrid", ProceduralArt.OceanGrid(700, -3, 900, 120, 90));
@@ -556,7 +564,7 @@ namespace SameShore.EditorTools
             M["Swash"].SetVector("_ShorePoint", shore);
             M["Swash"].SetVector("_ShoreDir", new Vector4(0, 0, -1, 0));
 
-            var swash = new GameObject("ShoreSwash");
+            var swash = _swash = new GameObject("ShoreSwash");
             swash.transform.SetParent(_env, false);
             swash.AddComponent<MeshFilter>().sharedMesh = SaveMesh("SwashStrip",
                 ProceduralArt.SwashStrip((x, z) => Mathf.Max(Ground(x, z), WaterLevel - 0.05f), cx - 22, cx + 22, zs + 1.5f, zs - 4f, 0.15f));
@@ -602,68 +610,63 @@ namespace SameShore.EditorTools
         static Props PlaceProps()
         {
             var props = new Props();
-            var trashRoot = Child(_env, "Litter").transform;
+            // the team's monobloc chair and wooden buckets are replaced by the beach camp (storyboard v2)
+            Deactivate("plastic_monobloc_chair_01_1k");
+            Deactivate("Wooden_Bucket");
+            Deactivate("Wooden_Bucket (1)");
 
-            // chair (teammate's monobloc chair): an obstacle the hatchling must go around, or shelter under
-            GameObject chair = Find("plastic_monobloc_chair_01_1k");
-            Vector3 cp = L(-0.8f, 10.5f);
-            chair.transform.position = cp;
-            chair.transform.rotation = Quaternion.Euler(-90, 30, 0);
-            props.chair = chair.transform;
-            AddFeedback(chair);
-            var chairRb = chair.GetComponent<Rigidbody>();
-            chairRb.mass = 3.5f;
-            chairRb.linearDamping = 0.6f;
-            chairRb.angularDamping = 2.5f;
-            chairRb.interpolation = RigidbodyInterpolation.Interpolate;
-            chairRb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
-            foreach (var mc in chair.GetComponentsInChildren<MeshCollider>()) mc.convex = true;
-            GetOrAdd<BeachChairMarker>(chair);
-            // where to leave it: beside the dunes, out of the hatchlings' way
-            var safe = Child(_env, "ChairSafeZone").transform;
-            safe.position = L(-5.6f, 13f);
-            var ringDecal = Prim(PrimitiveType.Quad, "SafeZoneMark", safe, safe.position + Vector3.up * 0.01f, Vector3.one * 1.3f, M["GroundDecal"], false, Quaternion.Euler(90, 0, 0));
-            string ringPath = Gen + "/Materials/SafeZoneRing.mat";
-            AssetDatabase.DeleteAsset(ringPath);
-            var ringMat = new Material(M["GroundDecal"]);
-            ringMat.SetTexture("_BaseMap", SavePng("SafeZoneRing", ProceduralArt.Ring(), true, true));
-            ringMat.SetColor("_BaseColor", new Color(0.85f, 0.8f, 0.6f, 0.35f));
-            AssetDatabase.CreateAsset(ringMat, ringPath);
-            ringDecal.GetComponent<MeshRenderer>().sharedMaterial = ringMat;
-            props.safeZone = safe;
-
-            // flashlight: lying lit on the sand, its beam across the hatchlings' path
+            // flashlight (team object): held with the VRHand grab in a defined pose, beam along the hand
             GameObject fl = Find("Flashlight");
-            Vector3 fp = L(3.3f, 8.2f, 0.035f);
-            Vector3 aim = L(-1.6f, 12.8f) - fp;
-            aim.y = 0;
-            fl.transform.SetPositionAndRotation(fp, Quaternion.LookRotation(aim.normalized + Vector3.up * 0.06f));
+            fl.transform.SetPositionAndRotation(L(3f, 7.6f, 0.035f), Quaternion.identity);   // identity while aligning the model
             props.flashlight = fl.transform;
             Transform beamT = fl.transform.Find("Beam");
             var beam = beamT.GetComponent<Light>();
+            beamT.localPosition = new Vector3(0, 0, 0.1f);
             beamT.localRotation = Quaternion.identity;
             beam.type = LightType.Spot;
             beam.range = 11f;
-            beam.spotAngle = 58f;
-            beam.innerSpotAngle = 30f;
-            beam.intensity = 7f;
+            beam.spotAngle = 52f;
+            beam.innerSpotAngle = 26f;
+            beam.intensity = 6f;
             beam.color = new Color(1f, 0.87f, 0.72f);
             beam.shadows = LightShadows.Soft;
             Set(beamT.GetComponent<LightSource>(), "strength", 2.2f);
             Set(beamT.GetComponent<LightSource>(), "artificial", true);
             Transform cyl = fl.transform.Find("Cylinder");
             if (cyl != null) cyl.GetComponent<MeshRenderer>().enabled = false;
+            foreach (Transform old in fl.transform.Cast<Transform>().ToArray())
+                if (old.name == "TorchModel") Object.DestroyImmediate(old.gameObject);
             var torch = Model($"{PH}/small_plastic_torch/small_plastic_torch.fbx", fl.transform, "TorchModel");
             if (torch != null)
             {
-                AlignLongAxis(torch, fl.transform, beamT.localPosition.z, 0.2f);
+                AlignLongAxis(torch, fl.transform, 0f, 0.2f);
+                FaceHeadForward(torch, fl.transform);
                 Remap(torch, new Dictionary<string, Material>(), M["small_plastic_torch"]);
             }
-            Set(fl.GetComponent<Flashlight>(), "startOn", true);
-            AddFeedback(fl);
-            // held like a real torch: beam along the controller's pointing direction
-            var grip = GetOrAdd<GripAlignment>(fl);
-            Set(grip, "grabbable", fl.GetComponent<Grabbable>());
+            // remove the ISDK grab (its free transform held the torch sideways) and use VRGrabbable instead
+            foreach (var c in fl.GetComponentsInChildren<Component>(true).ToArray())
+            {
+                if (c == null) continue;
+                string ns = c.GetType().Namespace ?? "";
+                if (ns.StartsWith("Oculus.Interaction")) Object.DestroyImmediate(c);
+            }
+            foreach (var t in fl.GetComponentsInChildren<Transform>(true).ToArray())
+                if (t != null && t.name.StartsWith("ISDK")) Object.DestroyImmediate(t.gameObject);
+            foreach (var c in new System.Type[] { typeof(GripAlignment), typeof(GrabFeedback) })
+                if (fl.GetComponent(c) != null) Object.DestroyImmediate(fl.GetComponent(c));
+            var flRb = fl.GetComponent<Rigidbody>();
+            if (flRb == null) flRb = fl.AddComponent<Rigidbody>();
+            flRb.isKinematic = false;
+            flRb.mass = 0.3f;
+            var flGrab = MakeGrab(fl, 0.3f, "flashlight", false);
+            flGrab.usePose = true;
+            flGrab.posePosition = new Vector3(0f, -0.015f, 0.03f);   // in the fist, beam along the controller's pointing ray
+            flGrab.poseEuler = Vector3.zero;
+            flGrab.desktopOffset = new Vector3(0.2f, -0.2f, 0.42f);
+            flGrab.desktopEuler = Vector3.zero;
+            GetOrAdd<FlashlightUse>(fl);
+            Set(fl.GetComponent<Flashlight>(), "grabbable", null);
+            Set(fl.GetComponent<Flashlight>(), "startOn", false);
             GetOrAdd<LightConeVisual>(beamT.gameObject);
             var click = GetOrAdd<AudioSource>(fl);
             click.clip = AssetDatabase.LoadAssetAtPath<AudioClip>($"{Root}/Audio/flashlight_click.wav");
@@ -673,102 +676,51 @@ namespace SameShore.EditorTools
             click.maxDistance = 8f;
             Set(fl.GetComponent<Flashlight>(), "clickSound", click);
 
-            // hole (teammate's Hole object becomes the real, fillable hole)
+            // hole (team's Hole object): becomes the hole dug for the sandcastle (positioned by BuildSandcastle)
             GameObject hole = Find("Hole");
-            hole.transform.position = L(0.9f, 6.0f);
             hole.transform.rotation = Quaternion.identity;
             hole.transform.localScale = Vector3.one;
             var mr = hole.GetComponent<MeshRenderer>();
             if (mr != null) mr.enabled = false;
             var capsule = hole.GetComponent<CapsuleCollider>();
             capsule.isTrigger = true;
-            capsule.radius = 0.5f;
+            capsule.radius = 0.4f;
             capsule.height = 0.5f;
             capsule.direction = 1;
             capsule.center = new Vector3(0, -0.1f, 0);
             var zone = hole.GetComponent<TurtleZone>();
             zone.Type = TurtleZoneType.Trap;
-            zone.SpeedMultiplier = 0.2f;
-            zone.FirstEnterMessage = "You fell into a hole dug by people.\nKeep pushing: crawl or burst to climb out.";
+            zone.SpeedMultiplier = 0.25f;
             EditorUtility.SetDirty(zone);
             var sandHole = GetOrAdd<SandHole>(hole);
+            hole.transform.position = LX(DigXY);
             Set(sandHole, "terrain", TerrainAt(hole.transform.position));
             Set(sandHole, "trapZone", zone);
             props.hole = hole.transform;
             props.sandHole = sandHole;
-
-            var castle = Model(Art + "/Models/Sandcastle.fbx", _env, "Sandcastle");
-            castle.transform.position = L(2.0f, 5.5f, -0.02f);
-            castle.transform.rotation = Quaternion.Euler(0, 20, 0);
-            Remap(castle, new Dictionary<string, Material>(), M["Sandcastle"]);
-            AddMeshColliders(castle, true);
-
-            // buckets of sand next to the hole
-            foreach (var (name, pos) in new[] { ("Wooden_Bucket", L(2.4f, 6.8f)), ("Wooden_Bucket (1)", L(-1.9f, 3.4f)) })
-            {
-                GameObject b = Find(name);
-                if (b == null) continue;
-                b.transform.SetPositionAndRotation(pos + Vector3.up * 0.01f, Quaternion.Euler(0, Rand(0, 360), 0));
-                var fill = Prim(PrimitiveType.Cylinder, "SandFill", b.transform, b.transform.position + Vector3.up * 0.3f,
-                                new Vector3(0.27f, 0.005f, 0.27f), M["SandFill"]);
-                fill.transform.localPosition = new Vector3(0, 0.3f, 0);
-                AddFeedback(b);
-                var sb = GetOrAdd<SandBucket>(b);
-                Set(sb, "sandFill", fill.transform);
-                Set(sb, "mouthHeight", 0.34f);
-                Set(sb, "pourAngle", 80f);
-                props.buckets.Add(b);
-            }
-
-            // litter along the nest -> sea corridor
-            Trash(trashRoot, "PlasticBag", Art + "/Models/PlasticBag.fbx", L(-0.4f, 14.2f, 0.01f), 40, 0.03f, "bag", true);
-            Trash(trashRoot, "PlasticBag", Art + "/Models/PlasticBag.fbx", L(1.7f, 2.9f, 0.01f), -25, 0.03f, "bag", true);
-            Trash(trashRoot, "Bottle_PET", Art + "/Models/Bottle_PET.fbx", L(0.6f, 12.6f, 0.034f), 70, 0.25f, "bottle", false, true);
-            Trash(trashRoot, "Bottle_PET", Art + "/Models/Bottle_PET.fbx", L(-1.3f, 8.3f, 0.034f), -20, 0.25f, "bottle", false, true);
-            Trash(trashRoot, "Bottle_PET", Art + "/Models/Bottle_PET.fbx", L(-0.2f, 4.6f, 0.034f), 110, 0.25f, "bottle", false, true);
-            Trash(trashRoot, "Bottle_PET_Crushed", Art + "/Models/Bottle_PET_Crushed.fbx", L(2.0f, 10.2f, 0.02f), 15, 0.12f, "bottle", false, true);
-            Trash(trashRoot, "Bottle_Glass", Art + "/Models/Bottle_Glass.fbx", L(1.3f, 15.4f, 0.032f), -60, 0.4f, "glass bottle", false, true);
-            Trash(trashRoot, "Can", $"{PH}/can_rusted/can_rusted.fbx", L(-1.6f, 11.6f, 0.0f), 0, 0.05f, "can", false, false, 0.12f);
-            Trash(trashRoot, "Can", $"{PH}/can_rusted/can_rusted.fbx", L(2.8f, 13.3f, 0.0f), 0, 0.05f, "can", false, false, 0.12f);
-            Trash(trashRoot, "FoodContainer", $"{PH}/plastic_container/plastic_container.fbx", L(0.2f, 9.2f, 0.0f), 30, 0.06f, "container", false, false, 0.19f);
-
-            // litter bin at the side of the beach
-            Vector3 bp = L(-5.2f, 9f);
-            var bin = Prim(PrimitiveType.Cylinder, "LitterBin", _env, bp + Vector3.up * 0.45f, new Vector3(0.5f, 0.45f, 0.5f), M["Bin"], true);
-            Object.DestroyImmediate(bin.GetComponent<Collider>());
-            Prim(PrimitiveType.Cylinder, "Rim", _env, bp + Vector3.up * 0.9f, new Vector3(0.54f, 0.02f, 0.54f), M["BinLid"]);
-            // hollow-ish: four walls so things can drop inside
-            for (int i = 0; i < 4; i++)
-            {
-                var wall = new GameObject("Wall").AddComponent<BoxCollider>();
-                wall.transform.SetParent(bin.transform, false);
-                wall.transform.localRotation = Quaternion.Euler(0, i * 90, 0);
-                wall.transform.localPosition = wall.transform.localRotation * new Vector3(0, 0, 0.48f);
-                wall.size = new Vector3(1f, 2f, 0.06f);
-            }
-            var floor = new GameObject("Floor").AddComponent<BoxCollider>();
-            floor.transform.SetParent(bin.transform, false);
-            floor.transform.localPosition = new Vector3(0, -0.95f, 0);
-            floor.size = new Vector3(1f, 0.1f, 1f);
-            var binTrigger = new GameObject("BinTrigger").AddComponent<BoxCollider>();
-            binTrigger.transform.SetParent(bin.transform, false);
-            binTrigger.size = new Vector3(0.9f, 1.8f, 0.9f);
-            binTrigger.isTrigger = true;
-            binTrigger.gameObject.AddComponent<TrashBin>();
-            props.bin = binTrigger.transform;
-            var label = new GameObject("BinLabel");
-            label.transform.SetParent(_env, false);
-            label.transform.position = bp + Vector3.up * 1.15f;
-            Vector3 toPath = L(0, 9f) - bp;
-            toPath.y = 0;
-            label.transform.rotation = Quaternion.LookRotation(-toPath.normalized, Vector3.up);
-            var lt = label.AddComponent<TextMeshPro>();
-            lt.rectTransform.sizeDelta = new Vector2(1.2f, 0.4f);
-            lt.fontSize = 1.6f;
-            lt.alignment = TextAlignmentOptions.Center;
-            lt.color = new Color(0.75f, 0.95f, 0.8f);
-            lt.text = "<b>PLASTIC & LITTER</b>";
             return props;
+        }
+
+        /// <summary>The torch model's wide end (the head) must point along +Z (the beam).</summary>
+        static void FaceHeadForward(GameObject model, Transform parent)
+        {
+            float front = 0, back = 0;
+            foreach (var mf in model.GetComponentsInChildren<MeshFilter>())
+            {
+                var m = mf.sharedMesh;
+                foreach (var v in m.vertices)
+                {
+                    Vector3 p = parent.InverseTransformPoint(mf.transform.TransformPoint(v));
+                    float r = new Vector2(p.x, p.y).magnitude;
+                    if (p.z > 0.06f) front = Mathf.Max(front, r);
+                    if (p.z < -0.06f) back = Mathf.Max(back, r);
+                }
+            }
+            if (back > front * 1.05f)
+            {
+                model.transform.RotateAround(parent.position, parent.up, 180f);
+                Debug.Log("[SameShore] torch model flipped so its head faces the beam");
+            }
         }
 
         static void Trash(Transform parent, string name, string model, Vector3 pos, float yaw, float mass, string label,
@@ -921,14 +873,15 @@ namespace SameShore.EditorTools
             var decor = Child(_env, "Decor").transform;
             // rocks
             // (dx, d, max size in metres)
-            (float dx, float d, float s)[] small = { (-4.2f, 6f, 0.7f), (5.6f, 11f, 0.9f), (-3.6f, 15f, 0.6f), (6.5f, 3.5f, 0.5f), (-2.8f, 0.9f, 0.8f), (3.8f, 16.5f, 0.45f), (2.6f, 13.8f, 0.35f) };
+            // framing the hatchlings' route: low rocks on both sides guide the eye from the nest to the sea
+            (float dx, float d, float s)[] small = { (-2.7f, 13.6f, 0.55f), (-2.6f, 9.2f, 0.7f), (-3.1f, 4.8f, 0.6f), (2.9f, 15.8f, 0.5f), (3.4f, 12.2f, 0.45f), (6.5f, 6.0f, 0.5f), (-2.8f, 0.9f, 0.8f), (-4.6f, 16.8f, 0.7f) };
             int k = 0;
             foreach (var r in small) Rock(decor, $"{PH}/sand_rocks_small_01/sand_rocks_small_01.fbx", k++, L(r.dx, r.d), r.s, M["sand_rocks_small_01"]);
             (float dx, float d, float s)[] big = { (-10f, 0.5f, 3.2f), (12.5f, 0f, 3.6f), (-8.5f, -2.5f, 2.6f), (15f, -3f, 3f) };
             foreach (var r in big) Rock(decor, $"{PH}/coast_rocks_01/coast_rocks_01.fbx", k++, L(r.dx, r.d), r.s, M["coast_rocks_01"]);
 
             // driftwood branches
-            foreach (var (dx, d, yaw) in new[] { (3.6f, 15.5f, 40f), (-2.9f, 2.3f, -70f), (6.8f, 7.5f, 10f) })
+            foreach (var (dx, d, yaw) in new[] { (-2.1f, 11.6f, 30f), (2.6f, 17.0f, -50f), (-1.9f, 2.6f, -70f) })
             {
                 var w = Model($"{PH}/dead_quiver_branch_01/dead_quiver_branch_01.fbx", decor, "Driftwood");
                 if (w == null) continue;
@@ -1016,9 +969,9 @@ namespace SameShore.EditorTools
             Set(fs, "footprintMaterial", M["Footprint"]);
             Set(fs, "printMesh", quad);
             // older trails left by people earlier in the evening
-            Trail(go.transform, quad, new[] { L(-6f, 17f), L(-2f, 11f), L(2.5f, 5f), L(5.5f, 0.6f) });
-            Trail(go.transform, quad, new[] { L(9f, 15f), L(5f, 12.5f), L(0.2f, 10.8f) });
-            Trail(go.transform, quad, new[] { L(-1f, 0.8f), L(3f, 1.6f), L(8f, 1.2f) });
+            // the way the human came to the beach this afternoon, and a stroll along the water
+            Trail(go.transform, quad, new[] { L(8f, 21f), L(5.5f, 14f), L(3.8f, 10.4f) });
+            Trail(go.transform, quad, new[] { L(9f, 1.2f), L(5f, 1.8f), L(2.5f, 1.4f) });
             return fs;
         }
 
@@ -1178,8 +1131,8 @@ namespace SameShore.EditorTools
                 channels.Add(new AmbientAudio.Channel { name = "WavesClose", source = Src("WavesHatchling", C("ocean_waves_close_loop"), L(dx, -2f, 0.5f), 0.7f, 9f, 90f), humanVolume = 0f, hatchlingVolume = 1f });
             }
             channels.Add(new AmbientAudio.Channel { name = "Wind", source = Src("Wind", C("wind_loop"), L(0, 8, 2), 0f, 1, 10), humanVolume = 0.32f, hatchlingVolume = 0.16f, hatchlingLowpass = 2500f });
-            channels.Add(new AmbientAudio.Channel { name = "HotelMusic", source = Src("HotelMusic", C("hotel_music_loop"), new Vector3(-14f, 9f, -40f), 1f, 14f, 140f), humanVolume = 0.5f, hatchlingVolume = 0.35f, humanLowpass = 2200f, hatchlingLowpass = 420f });
-            channels.Add(new AmbientAudio.Channel { name = "Voices", source = Src("PeopleVoices", C("voices_muffled_loop"), new Vector3(-6f, 6f, -32f), 1f, 10f, 120f), humanVolume = 0.25f, hatchlingVolume = 0.55f, humanLowpass = 2500f, hatchlingLowpass = 520f });
+            // (the music now comes from the human's own speaker, see MusicPlayer / TurtleHearing)
+            channels.Add(new AmbientAudio.Channel { name = "Voices", source = Src("PeopleVoices", C("voices_muffled_loop"), new Vector3(-6f, 6f, -32f), 1f, 10f, 120f), humanVolume = 0.12f, hatchlingVolume = 0.3f, humanLowpass = 2500f, hatchlingLowpass = 520f });
             var amb = systems.gameObject.AddComponent<AmbientAudio>();
             var so = new SerializedObject(amb);
             var arr = so.FindProperty("channels");
@@ -1199,7 +1152,7 @@ namespace SameShore.EditorTools
         }
 
         // ================================================================== player, turtle, systems
-        static void WireSystems(Transform systems, Transform nest, Props props, FootprintSystem footprints, Seagull[] gulls, AmbientAudio audio)
+        static void WireSystems(Transform systems, Transform nest, Props props, FootprintSystem footprints, Seagull[] gulls, AmbientAudio audio, Story story)
         {
             var rig = Object.FindFirstObjectByType<OVRCameraRig>();
             Transform rigRoot = rig.transform;
@@ -1216,12 +1169,12 @@ namespace SameShore.EditorTools
             cc.minMoveDistance = 0f; // never drop small per-frame moves (high frame rates)
             var loco = GetOrAdd<SmoothLocomotion>(rigRoot.gameObject);
             Set(loco, "head", rig.centerEyeAnchor);
-            Vector3 start = L(1f, 2.6f);
+            Vector3 start = MeshKit.OnGround(story.seat.position);
             rigRoot.position = start;
-            rigRoot.rotation = Quaternion.identity;
+            rigRoot.rotation = Quaternion.Euler(0, story.seat.eulerAngles.y, 0);
 
             var humanStart = Child(_env, "HumanStart").transform;
-            humanStart.SetPositionAndRotation(start, Quaternion.identity);
+            humanStart.SetPositionAndRotation(start, Quaternion.Euler(0, story.seat.eulerAngles.y, 0));
 
             var human = systems.gameObject.AddComponent<HumanController>();
             Set(human, "locomotion", loco);
@@ -1314,26 +1267,43 @@ namespace SameShore.EditorTools
             Set(perception, "humanVolume", humanVol);
             Set(perception, "hatchlingVolume", hatchVol);
 
-            // ---- beach state, gulls, fader, pointers, director
-            var beach = systems.gameObject.AddComponent<BeachStateTracker>();
+            // ---- shared memory of the day, day cycle, hands
             var seaPoint = Child(_env, "SeaPoint").transform;
             seaPoint.position = L(0, 0);
-            Set(beach, "nest", nest);
-            Set(beach, "seaPoint", seaPoint);
-            Set(beach, "flashlight", props.flashlight.GetComponent<Flashlight>());
-            Set(beach, "hole", props.sandHole);
-            Set(beach, "chair", props.chair);
+            var log = systems.gameObject.AddComponent<BeachLog>();
+            var day = systems.gameObject.AddComponent<DayCycle>();
+            Set(day, "sun", Find("Moon").GetComponent<Light>());
+            Set(day, "skyMaterial", M["Sky"]);
+            Set(day, "ocean", _ocean.GetComponent<MeshRenderer>());
+            Set(day, "swash", _swash.GetComponent<MeshRenderer>());
+            Set(day, "moon", _moonQuad.GetComponent<MeshRenderer>());
+            Set(day, "hotel", GameObject.Find("DistantHotel").GetComponentsInChildren<MeshRenderer>().Cast<Object>().ToArray());
+            foreach (var hand in new[] { Hand.Left, Hand.Right })
+            {
+                var h = Child(systems, "VRHand" + hand).AddComponent<VRHand>();
+                h.hand = hand;
+            }
 
-            var hunt = systems.gameObject.AddComponent<GullHunt>();
-            Set(hunt, "hunter", gulls[gulls.Length - 1]);
-            Set(hunt, "turtle", turtle);
+            // ---- the hatchling's act
+            var hunt = systems.gameObject.AddComponent<GullEncounters>();
+            Set(hunt, "gull", gulls[gulls.Length - 1]);
             Set(hunt, "sea", seaPoint);
-
-            var journey = systems.gameObject.AddComponent<TurtleJourney>();
-            Set(journey, "turtle", turtle);
-            Set(journey, "nest", nest);
-            Set(journey, "sea", seaPoint);
-            Set(journey, "gull", hunt);
+            Set(hunt, "shadowMaterial", M["GroundDecal"]);
+            Set(hunt, "ringMaterial", M["WarningRing"]);
+            var hearing = systems.gameObject.AddComponent<TurtleHearing>();
+            Set(hearing, "music", story.music);
+            var ts = systems.gameObject.AddComponent<TurtleStory>();
+            Set(ts, "turtle", turtle);
+            Set(ts, "nest", nest);
+            Set(ts, "sea", seaPoint);
+            Set(ts, "route", story.route);
+            Set(ts, "cans", story.cans);
+            Set(ts, "hole", story.hole);
+            Set(ts, "bag", story.bag);
+            Set(ts, "garland", story.garland);
+            Set(ts, "giant", story.giant);
+            Set(ts, "gulls", hunt);
+            Set(ts, "hearing", hearing);
 
             var fx = body.AddComponent<TurtleFX>();
             Set(fx, "turtle", turtle);
@@ -1349,11 +1319,14 @@ namespace SameShore.EditorTools
             Set(finalWave, "foamMaterial", M["WaveFoam"]);
 
             BuildHumanBody(systems);
+            var humanAvatar = systems.GetComponentInChildren<HumanAvatar>();
+            var seat = systems.gameObject.AddComponent<HumanSeat>();
+            Set(seat, "avatar", humanAvatar);
+            Set(seat, "locomotion", loco);
 
             var fader = systems.gameObject.AddComponent<ScreenFader>();
             // Editor without a headset: mouse/keyboard testing (inactive on Quest / with Link)
             systems.gameObject.AddComponent<DesktopTestingMode>();
-            systems.gameObject.AddComponent<DesktopInteractor>();
             foreach (var hand in new[] { Hand.Left, Hand.Right })
             {
                 var p = Child(systems, "Pointer" + hand).AddComponent<VRPointer>();
@@ -1364,21 +1337,35 @@ namespace SameShore.EditorTools
             Set(director, "phaseSwitcher", switcher);
             Set(director, "turtle", turtle);
             Set(director, "human", human);
+            Set(director, "seat", seat);
             Set(director, "fader", fader);
             Set(director, "perception", perception);
             Set(director, "ambient", audio);
-            Set(director, "beach", beach);
-            Set(director, "gull", hunt);
-            Set(director, "journey", journey);
             Set(director, "objectives", objectives);
             Set(director, "finalWave", finalWave);
             Set(director, "nest", nestCtl);
             Set(director, "turtleFX", fx);
+            Set(director, "day", day);
+            Set(director, "log", log);
+            Set(director, "turtleStory", ts);
+            Set(director, "gulls", hunt);
+            Set(director, "chairSeat", story.seat);
+            Set(director, "towel", story.towel);
+            Set(director, "drink", story.drink);
+            Set(director, "music", story.music);
+            Set(director, "canToss", story.cans);
+            Set(director, "castle", story.castle);
+            Set(director, "shovel", story.shovel);
+            Set(director, "sandwich", story.sandwich);
+            Set(director, "bag", story.bag);
+            Set(director, "fireworks", story.fireworks);
+            Set(director, "garland", story.garland);
+            Set(director, "flashlight", props.flashlight.GetComponent<Flashlight>());
+            Set(director, "phone", story.phone);
+            Set(director, "photoTurtle", story.photoTurtle);
+            Set(director, "photoTurtleStart", story.photoTurtleStart);
             Set(director, "humanStart", humanStart);
-            Set(director, "menuSpot", humanStart);
             Set(director, "sea", seaPoint);
-            Set(director, "chairSafeZone", props.safeZone);
-            Set(director, "litterBin", props.bin);
         }
 
         /// <summary>First-person body: one pivot per segment at the proximal joint, mesh aligned to +Y.</summary>
@@ -1512,11 +1499,16 @@ namespace SameShore.EditorTools
         static VolumeProfile HumanProfile()
         {
             var p = Profile("HumanView");
+            // PDF VS1 "dull view": a little less colour than the hatchling sees, but a bright, pleasant holiday
             var ca = Add<ColorAdjustments>(p);
-            ca.saturation.Override(-38f);
-            ca.contrast.Override(8f);
-            ca.postExposure.Override(0.35f);
-            ca.colorFilter.Override(new Color(0.93f, 0.97f, 1.04f));
+            ca.saturation.Override(-12f);
+            ca.contrast.Override(6f);
+            ca.postExposure.Override(0.15f);
+            ca.colorFilter.Override(new Color(1.03f, 0.99f, 0.92f));   // warm holiday light on the pale sand
+            var bloom = Add<Bloom>(p);
+            bloom.intensity.Override(0.55f);
+            bloom.threshold.Override(1.05f);
+            bloom.scatter.Override(0.6f);
             var tm = Add<Tonemapping>(p);
             tm.mode.Override(TonemappingMode.Neutral);
             EditorUtility.SetDirty(p);
@@ -1533,6 +1525,11 @@ namespace SameShore.EditorTools
             ca.postExposure.Override(0.6f);
             ca.hueShift.Override(-5f);
             ca.colorFilter.Override(new Color(0.96f, 0.98f, 1.06f));
+            // artificial lights become big glowing points for the hatchling
+            var hb = Add<Bloom>(p);
+            hb.intensity.Override(1.1f);
+            hb.threshold.Override(0.9f);
+            hb.scatter.Override(0.72f);
             var mix = Add<ChannelMixer>(p);
             mix.blueOutRedIn.Override(6f);
             mix.blueOutBlueIn.Override(104f);

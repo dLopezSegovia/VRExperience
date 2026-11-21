@@ -22,7 +22,12 @@ namespace SameShore
         [SerializeField] private TurtleZone trapZone;
         [SerializeField] private GameObject[] disableWhenFilled;
 
+        [Tooltip("Start already dug (old flow). Off: the hole appears as the human digs sand for the castle.")]
+        [SerializeField] private bool startDug = true;
+
         public float Fill01 { get; private set; }
+        /// <summary>How much has been dug out (0 = flat sand, 1 = full depth).</summary>
+        public float Dug01 { get; private set; } = 1f;
         public bool IsFilled => Fill01 >= 0.97f;
         public float Radius => radius;
         public float FillPerBucket => fillPerBucket;
@@ -51,7 +56,42 @@ namespace SameShore
             _w = x1 - _x0 + 1;
             _h = y1 - _y0 + 1;
             _orig = _data.GetHeights(_x0, _y0, _w, _h);
+            if (!startDug && !_dugSet) Dug01 = 0f;
             Apply(0f, true);
+            UpdateTrap();
+        }
+
+        bool _dugSet;
+
+        /// <summary>Digging (sandcastle): deepen the hole. Collider synced so the hatchling feels it.</summary>
+        public void SetDug01(float d)
+        {
+            _dugSet = true;
+            Dug01 = Mathf.Clamp01(d);
+            if (_data != null) Apply(Fill01, true);
+            UpdateTrap();
+            LiftResting();
+        }
+
+        /// <summary>The dug sand is piled around the hole: anything lying there is lifted onto the new surface.</summary>
+        void LiftResting()
+        {
+            foreach (var c in Physics.OverlapSphere(transform.position, radius + rimWidth + 0.3f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                var rb = c.attachedRigidbody;
+                if (rb == null || rb.isKinematic) continue;
+                float g = MeshKit.GroundY(rb.position);
+                Bounds b = c.bounds;
+                if (b.min.y < g + 0.005f) { rb.position += Vector3.up * (g + 0.01f - b.min.y); rb.WakeUp(); }
+            }
+        }
+
+        void UpdateTrap()
+        {
+            if (trapZone == null) return;
+            bool on = Dug01 > 0.3f && !IsFilled;
+            trapZone.enabled = on;
+            foreach (var c in trapZone.GetComponents<Collider>()) c.enabled = on;
         }
 
         public void AddSand(float bucketFraction)
@@ -90,12 +130,12 @@ namespace SameShore
                 if (r < radius)
                 {
                     float k = r / radius;
-                    delta = -depth * (1f - k * k) * (1f - fill);   // bowl
+                    delta = -depth * Dug01 * (1f - k * k) * (1f - fill);   // bowl
                 }
                 else if (r < radius + rimWidth)
                 {
                     float k = (r - radius) / rimWidth;
-                    delta = rimHeight * Mathf.Sin(k * Mathf.PI) * (1f - fill); // dug sand piled around
+                    delta = rimHeight * Dug01 * Mathf.Sin(k * Mathf.PI) * (1f - fill); // dug sand piled around
                 }
                 h[y, x] = _orig[y, x] + delta / size.y;
             }

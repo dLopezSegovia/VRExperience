@@ -55,6 +55,32 @@ namespace SameShore
         public Mesh[] pebbles;
         public Material pebble;
 
+        [Header("Storyboard v2")]
+        public AudioClip[] clips;
+        public Texture2D ringTexture;
+        public Material bulbOn;
+        public Material bulbOff;
+        public Material cable;
+        public Material fireworkParticle;
+        public Material sandCastle;
+
+        System.Collections.Generic.Dictionary<string, AudioClip> _byName;
+
+        /// <summary>Clip by file name (Audio/&lt;name&gt;.wav), from the 'clips' list.</summary>
+        public AudioClip Clip(string name)
+        {
+            if (_byName == null)
+            {
+                _byName = new System.Collections.Generic.Dictionary<string, AudioClip>();
+                if (clips != null) foreach (var c in clips) if (c != null) _byName[c.name] = c;
+            }
+            if (_byName.TryGetValue(name, out var clip)) return clip;
+            Debug.LogWarning("[SameShore] missing clip " + name);
+            return null;
+        }
+
+        public AudioClip buttonClick => Clip("button_click");
+
         static SameShoreAssets _instance;
 
         public static SameShoreAssets I

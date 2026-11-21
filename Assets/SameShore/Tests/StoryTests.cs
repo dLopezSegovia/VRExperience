@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -7,9 +8,9 @@ using static SameShore.Tests.TestInput;
 namespace SameShore.Tests
 {
     /// <summary>
-    /// End-to-end story runs driven by simulated mouse/keyboard input (buttons are clicked through the
-    /// EventSystem, objects grabbed with E, the bodies moved with WASD). Teleports are used only to skip
-    /// long walks/crawls, never to trigger outcomes.
+    /// End-to-end runs of the storyboard v2, driven by simulated mouse/keyboard (Desktop Testing mode):
+    /// objects are grabbed/thrown/used with E and F, buttons pressed by aiming, the bodies moved with WASD.
+    /// Teleports are used only to shorten long crawls of the hatchling, never to cause an outcome.
     /// </summary>
     public static class StoryTests
     {
@@ -17,279 +18,439 @@ namespace SameShore.Tests
 
         static ObjectiveTracker Obj => ObjectiveTracker.Instance;
         static GameManager GM => GameManager.Instance;
-        static TurtleController Turtle => Object.FindFirstObjectByType<TurtleController>();
-        static GullHunt Gull => Object.FindFirstObjectByType<GullHunt>();
+        static T0 F<T0>() where T0 : Object => Object.FindFirstObjectByType<T0>();
+        static TurtleController Turtle => F<TurtleController>();
+        static ExperienceDirector Director => F<ExperienceDirector>();
         static Transform Sea => GameObject.Find("SeaPoint").transform;
 
-        static bool HumanReady() => GM.Current == GameState.Human && Object.FindFirstObjectByType<SmoothLocomotion>().MovementEnabled && Obj.Running;
+        static bool HumanReady() => GM.Current == GameState.Human && Obj.Running && ScreenFader.Instance.Alpha < 0.05f;
         static bool TurtleReady() => GM.Current == GameState.Hatchling && Turtle.enabled && ScreenFader.Instance.Alpha < 0.05f && Obj.Running;
         static ObjectiveState State(string id) => Obj.Get(id) != null ? Obj.Get(id).State : (ObjectiveState)(-1);
+        static float SeaD(Vector3 p) => Sea.position.z - p.z;
 
-        // ================================================================== CLEAN RUN
-        public static IEnumerator Clean(SmokeTestRunner t)
+        static IEnumerator Grab(Component c, string what)
+        {
+            yield return AimAt(Center(c.gameObject));
+            yield return Tap(Key.E);
+            yield return null;
+            T.Check($"E picks up {what}", VRHand.Right.Held != null && VRHand.Right.Held.gameObject == c.gameObject);
+        }
+
+        static IEnumerator Press(PokeButton b)
+        {
+            yield return AimAt(b.transform.position);
+            int before = b.Presses;
+            yield return Tap(Key.E);
+            yield return null;
+            T.Check($"Aim + E presses '{b.Label}'", b.Presses == before + 1);
+        }
+
+        // ================================================================== FULL RUN
+        public static IEnumerator Full(SmokeTestRunner t)
         {
             T = t;
             Setup();
             Object.DontDestroyOnLoad(t.gameObject);
             T.Check("Desktop Testing mode active", DesktopTestingMode.Active);
             yield return ClickButton("Full Experience");
-            yield return WaitFor(() => GameObject.Find("Subtitle") != null, 20f);
-            T.Check("Intro starts on a black screen with subtitles", ScreenFader.Instance.Alpha > 0.9f && GameObject.Find("Subtitle") != null);
-            yield return SkipStoryUntil(HumanReady, 120f);
-            T.Check($"Human phase with objectives '{Obj.Title}' ({Obj.Objectives.Count})", HumanReady() && Obj.Title == "YOUR OBJECTIVES" && Obj.Objectives.Count == 5);
-            T.Check("Objectives HUD shown (world-space canvas)", Obj.HUD.gameObject.activeSelf && Obj.HUD.Visible && Obj.HUD.GetComponent<Canvas>().renderMode == RenderMode.WorldSpace);
-            T.Check($"First objective is the flashlight ({Obj.Current?.Id})", Obj.Current != null && Obj.Current.Id == "flashlight");
+            yield return SkipStoryUntil(HumanReady, 90f);
+            var day = F<DayCycle>();
+            var seat = F<HumanSeat>();
+            T.Check($"Act I starts seated on the chair (eyes {PlayerRig.Head.position.y - MeshKit.GroundY(PlayerRig.Head.position):F2} m above the sand)",
+                    seat.Seated && Mathf.Abs(PlayerRig.Head.position.y - MeshKit.GroundY(PlayerRig.Head.position) - 1.02f) < 0.12f);
+            T.Check($"Sunny afternoon (cycle {day.Cycle:F2})", day.Cycle < 0.05f && RenderSettings.sun != null && RenderSettings.sun.intensity > 1f);
+            T.Check($"TODAY'S PLANS with 3 steps ({Obj.Title}, {Obj.Objectives.Count})", Obj.Title == "TODAY'S PLANS" && Obj.Objectives.Count == 3);
+            T.Check("Objectives HUD is a world-space canvas", Obj.HUD.Visible && Obj.HUD.GetComponent<Canvas>().renderMode == RenderMode.WorldSpace);
             yield return Click();   // capture the mouse
-            yield return new WaitForSeconds(1f);
-            var avatar = Object.FindFirstObjectByType<HumanAvatar>();
-            float torsoDrop = PlayerRig.Head.position.y - avatar.torso.position.y;
-            T.Check($"Human body below the eyes (hips {torsoDrop:F2} m under the camera)", torsoDrop > 0.55f && torsoDrop < 0.9f &&
-                    avatar.torso.GetComponentInChildren<Renderer>().enabled);
-            SaveView("01_human_intro.png");
+            yield return new WaitForSeconds(0.5f);
+            var avatar = F<HumanAvatar>();
+            T.Check("Seated full body (hips on the seat, below the eyes, no head mesh)", avatar.Seated &&
+                    PlayerRig.Head.position.y - avatar.torso.position.y > 0.5f && avatar.torso.GetComponentInChildren<Renderer>().enabled);
+            yield return AimAt(Sea.position + Vector3.up * 2f);
+            yield return new WaitForSeconds(0.3f);
+            SaveView("01_day_from_the_chair.png");
 
-            // ---- 1. flashlight
-            var interactor = Object.FindFirstObjectByType<DesktopInteractor>();
-            var lamp = Object.FindFirstObjectByType<Flashlight>();
-            yield return WalkTo(lamp.transform.position, 1.3f);
-            yield return AimAt(lamp.transform.position);
-            yield return Tap(Key.E);
-            T.Check("E picks up the flashlight", interactor.Held != null && interactor.Held.GetComponent<Flashlight>() == lamp);
+            // ---- scene 1: drink and music
+            var drink = F<BeachDrink>();
+            yield return Grab(drink, "the drink");
+            yield return new WaitForSeconds(0.3f);
+            T.Check("Drink objective done", State("drink") == ObjectiveState.Done);
+            yield return Tap(Key.E);   // put it down
+            var music = F<MusicPlayer>();
+            PokeButton play = null, vol = null;
+            foreach (var b in music.GetComponentsInChildren<PokeButton>()) { if (b.Label.StartsWith("play")) play = b; else vol = b; }
+            yield return Press(play);
+            yield return new WaitForSeconds(0.5f);
+            T.Check($"Speaker plays the beach music ({music.Source.clip?.name}, volume {music.Source.volume:F2})", music.IsOn && State("music") == ObjectiveState.Done && music.Source.volume > 0.05f);
+
+            // ---- scene 2: can toss (first two at the bin, the last one falls short)
+            var game = F<CanTossGame>();
+            var bin = GameObject.Find("LitterBin").transform;
+            for (int i = 0; i < 3; i++)
+            {
+                TossCan can = null;
+                foreach (var c in game.Cans) if (!c.Thrown) { can = c; break; }
+                yield return Grab(can, "an empty can");
+                Vector3 aim = i < 2 ? bin.position + Vector3.up * 0.45f : Vector3.Lerp(PlayerRig.Head.position, bin.position, 0.6f);
+                if (i == 2) aim.y = MeshKit.GroundY(aim);
+                yield return AimAt(aim);
+                yield return Tap(Key.E);
+                yield return WaitFor(() => can.Result != BeachLog.CanResult.Unthrown, 12f);
+                T.Check($"Can {i + 1} thrown with physics -> {can.Result} (HUD '{Obj.Get("cans").Progress()}')", can.Thrown && can.Result != BeachLog.CanResult.Unthrown);
+            }
+            T.Check($"Can toss done: {game.Scored} in, {3 - game.Scored} on the sand", game.Done && State("cans") == ObjectiveState.Done);
+            var missed = new List<(TossCan c, Vector3 p)>();
+            foreach (var c in game.Cans) if (c.Result == BeachLog.CanResult.Missed) missed.Add((c, c.transform.position));
+            T.Check($"Missed cans stay where they fell ({missed.Count})", missed.Count >= 1);
+            SaveView("02_can_toss.png");
+            yield return WaitFor(() => !seat.Seated && HumanReady(), 20f);
+            T.Check("Stands up after the can toss (walking enabled)", !seat.Seated && F<SmoothLocomotion>().MovementEnabled);
+
+            // ---- scene 3: sandcastle
+            var site = F<SandcastleSite>();
+            var hole = F<SandHole>();
+            yield return SkipStoryUntil(() => Obj.Get("shovel") != null, 20f);
+            var shovel = F<BeachShovel>();
+            yield return WalkTo(shovel.transform.position, 1.0f);
+            yield return Grab(shovel, "the shovel");
+            yield return new WaitForSeconds(0.2f);
+            T.Check($"Shovel held pointing down-forward (tip below the hand: {shovel.Tip.y < shovel.transform.position.y})", shovel.Tip.y < shovel.transform.position.y);
+            yield return WalkTo(site.DigSpot.position, 1.0f);
+            int towers = 0;
+            while (!site.Finished && towers < 3)
+            {
+                for (int k = 0; k < 4 && !site.Pail.Full; k++)
+                {
+                    yield return AimAt(site.DigSpot.position);
+                    yield return Tap(Key.F);              // dig
+                    yield return new WaitForSeconds(0.6f);
+                    yield return AimAt(site.Pail.transform.position);
+                    yield return new WaitForSeconds(0.6f);
+                    yield return Tap(Key.F);              // pour into the bucket
+                    yield return new WaitForSeconds(0.6f);
+                }
+                T.Check($"Bucket filled by shovelfuls ({site.Pail.Scoops}/{site.Pail.ScoopsToFill}), hole dug {hole.Dug01:P0}", site.Pail.Full && hole.Dug01 > 0.2f);
+                if (VRHand.Right.Held != null && VRHand.Right.Held.GetComponent<BeachShovel>() != null) { yield return AimAt(site.DigSpot.position + (PlayerRig.Head.position - site.DigSpot.position).normalized * 1.4f); yield return Tap(Key.E); }
+                yield return WalkTo(site.Pail.transform.position, 1.1f);
+                yield return Grab(site.Pail, "the bucket");
+                yield return Tap(Key.F);                  // turn it over on the plot
+                yield return new WaitForSeconds(1.2f);
+                T.Check("Bucket upside down on the castle spot", site.Pail.UpsideDown);
+                int before = site.Towers;
+                yield return WalkTo(site.Pail.transform.position, 1.1f);
+                yield return Grab(site.Pail, "the bucket again");
+                yield return new WaitForSeconds(0.6f);
+                T.Check($"Lifting the bucket reveals a tower ({site.Towers})", site.Towers == before + 1);
+                towers++;
+                yield return AimAt(site.Plot.position + (PlayerRig.Head.position - site.Plot.position).normalized * 1.3f);
+                yield return Tap(Key.E);
+                if (!site.Finished)
+                {
+                    yield return WalkTo(shovel.transform.position, 1.0f);
+                    yield return Grab(shovel, "the shovel");
+                    yield return WalkTo(site.DigSpot.position, 1.0f);
+                }
+            }
+            T.Check($"Sandcastle finished ({site.Towers} towers)", site.Finished && State("castle") == ObjectiveState.Done);
+            T.Check($"The dug hole stays open (depth {hole.Dug01:P0}, trap active)", hole.Dug01 > 0.99f && !hole.IsFilled);
+            yield return AimAt(site.Plot.position);
+            SaveView("03_sandcastle.png");
+            if (VRHand.Right.Held != null) yield return Tap(Key.E);
+
+            // ---- scene 4: snack
+            yield return SkipStoryUntil(() => Obj.Get("towel") != null, 30f);
+            var towel = GameObject.Find("Towel").transform;
+            var sandwich = F<Sandwich>();
+            yield return WalkTo(sandwich.transform.position, 1.0f);
+            T.Check("Back at the towel", State("towel") == ObjectiveState.Done || Flat(PlayerRig.Head.position - towel.position) < 2f);
+            yield return Grab(sandwich, "the sandwich");
+            for (int k = 0; k < 3; k++) { yield return Tap(Key.F); yield return new WaitForSeconds(1.25f); }
+            T.Check($"Snack eaten ({sandwich.Bites} bites)", sandwich.Eaten);
+            var bag = F<WindBag>();
+            yield return WaitFor(() => bag.State == WindBag.Phase.Landed, 15f);
+            var land = GameObject.Find("BagLanding").transform.position;
+            T.Check($"The wind carries the bag to the wet sand ({Flat(bag.transform.position - land):F2} m from the spot, {SeaD(bag.transform.position):F1} m from the sea)",
+                    bag.State == WindBag.Phase.Landed && Flat(bag.transform.position - land) < 0.6f && SeaD(bag.transform.position) < 4.5f);
+            yield return AimAt(bag.transform.position);
+            SaveView("04_bag_on_the_wet_sand.png");
+
+            // ---- scene 5: evening
+            yield return SkipStoryUntil(() => Obj.Get("louder") != null, 30f);
+            yield return WalkTo(music.transform.position, 1.1f);
+            yield return Press(vol);
+            T.Check($"Music turned up (level {music.VolumeLevel + 1})", music.VolumeLevel >= 1 && State("louder") == ObjectiveState.Done);
+            var fw = F<FireworksShow>();
+            yield return WalkTo(fw.Button.position, 0.9f);
+            var launch = fw.Button.GetComponent<PokeButton>();
+            yield return Press(launch);
+            yield return WaitFor(() => fw.Launched >= 3, 15f);
+            yield return AimAt(Sea.position + Vector3.forward * 20f + Vector3.up * 18f);
+            yield return new WaitForSeconds(0.4f);
+            SaveView("05_fireworks.png");
+            yield return WaitFor(() => fw.Finished, 40f);
+            T.Check($"Fireworks show ({fw.Launched} shells), the sky turns to sunset (cycle {day.Cycle:F2})", fw.Finished && fw.Launched >= 8 && day.Cycle > 0.4f);
+
+            // ---- scene 6: lights
+            yield return SkipStoryUntil(() => Obj.Get("reel") != null, 30f);
+            var gar = F<LightGarland>();
+            yield return WalkTo(gar.Reel.transform.position, 1.0f);
+            yield return Grab(gar.Reel, "the string of lights");
+            for (int i = 0; i < gar.HooksTotal; i++)
+            {
+                Transform hk = gar.Hooks[i];
+                yield return WalkTo(hk.position, 0.75f, 30f);
+                if (gar.Hooked <= i) { yield return AimAt(hk.position); yield return Tap(Key.F); }
+                yield return new WaitForSeconds(0.3f);
+                T.Check($"Clipped to hook {i + 1}/{gar.HooksTotal}", gar.Hooked >= i + 1);
+            }
+            yield return WaitFor(() => gar.LightsOn, 10f);
+            int lightSources = 0;
+            foreach (var ls in gar.GetComponentsInChildren<LightSource>()) if (ls.IsOn) lightSources++;
+            T.Check($"The string lights up ({gar.Spans} spans, {lightSources} light sources that will pull the hatchling)", gar.LightsOn && lightSources == gar.Spans);
+            yield return WaitFor(() => day.Cycle > 1.95f, 20f);
+            T.Check($"Night (cycle {day.Cycle:F2})", day.Cycle > 1.95f);
+            yield return AimAt(gar.Hooks[0].position);
+            SaveView("06_lights_at_night.png");
+
+            // ---- scene 7: flashlight and nest
+            yield return SkipStoryUntil(() => Obj.Get("lamp") != null, 30f);
+            var lamp = F<Flashlight>();
+            yield return WalkTo(lamp.transform.position, 1.0f);
+            yield return Grab(lamp, "the flashlight");
+            yield return Tap(Key.F);
             yield return null;
             float align = Vector3.Dot(lamp.transform.forward, PlayerRig.Head.forward);
-            T.Check($"Flashlight held pointing forward (beam/view alignment {align:F2})", align > 0.95f);
-            T.Check("Visible light cone while on", lamp.GetComponentInChildren<LightConeVisual>() != null && lamp.IsOn);
-            yield return AimAt(lamp.transform.position + PlayerRig.FlatForward * 3f - Vector3.up * 1.4f);
-            yield return new WaitForSeconds(0.3f);
-            SaveView("02_flashlight_held.png");
+            T.Check($"Flashlight on and pointing where you look (alignment {align:F2})", lamp.IsOn && align > 0.95f);
+            Transform last = gar.Hooks[gar.Hooks.Length - 1];
+            yield return WalkTo(last.position, 1.6f, 40f);
+            yield return SkipStoryUntil(() => Obj.Get("back") != null, 30f);
+            var nest = F<NestController>();
+            T.Check("Baby turtles emerge at the nest", nest != null && Obj.Get("back") != null);
+            var log = F<BeachLog>();
+            T.Check($"The night walk is being recorded ({log.NightPath.Count} samples)", log.NightPath.Count > 5);
+            yield return WalkTo(towel.position, 2.6f, 40f);
+
+            // ---- scene 8: photo
+            yield return SkipStoryUntil(() => Obj.Get("closer") != null, 20f);
+            var photoTurtle = F<PhotoHatchling>();
+            yield return WalkTo(photoTurtle.transform.position, 1.3f, 30f);
+            yield return SkipStoryUntil(() => Obj.Get("phone") != null, 20f);
+            var phone = F<PhoneCamera>();
+            yield return Grab(phone, "the phone");
+            yield return AimAt(photoTurtle.transform.position);
+            yield return new WaitForSeconds(0.5f);
+            SaveView("07_phone_framing.png");
             yield return Tap(Key.F);
-            yield return new WaitForSeconds(0.3f);
-            T.Check("F switches it off -> objective done", !lamp.IsOn && State("flashlight") == ObjectiveState.Done);
-            yield return Tap(Key.E);
+            yield return WaitFor(() => phone.PhotoTaken, 3f);
+            yield return new WaitForSeconds(0.4f);
+            T.Check($"Photo taken with flash; pose stored (feet {log.PhotoFeet})", phone.PhotoTaken && log.PhotoTaken && log.PhotoFlash);
 
-            // ---- 2. plastic (one piece by hand, the rest moved by the harness to keep the run short)
-            TrashItem bottle = TrashItem.All.Find(x => x.Label == "bottle" && !x.Cleared);
-            yield return WalkTo(bottle.transform.position, 1.2f);
-            yield return AimAt(Center(bottle.gameObject));
-            yield return Tap(Key.E);
-            T.Check("E picks up a bottle", interactor.Held == bottle.GetComponent<Rigidbody>());
-            var bin = Object.FindFirstObjectByType<TrashBin>();
-            yield return WalkTo(bin.transform.position, 1.6f);
-            yield return AimAt(bin.transform.position + Vector3.up * 0.4f);
-            yield return Click();
+            // ---- ACT II
+            yield return SkipStoryUntil(TurtleReady, 90f);
+            yield return TurtleChecks(log, missed);
+            yield return TurtleJourney(true);
+        }
+
+        static IEnumerator TurtleChecks(BeachLog log, List<(TossCan c, Vector3 p)> missed)
+        {
+            T.Check("Act II: the hatchling (Hatchling state)", TurtleReady());
+            float eye = PlayerRig.Head.position.y - MeshKit.GroundY(PlayerRig.Head.position);
+            T.Check($"Eyes {eye * 100:F1} cm above the sand, scale {PlayerRig.Scale:F2}", eye > 0.05f && eye < 0.13f && Mathf.Abs(PlayerRig.Scale - 0.05f) < 0.005f);
+            T.Check($"REACH THE OCEAN ({Obj.Objectives.Count} steps)", Obj.Title == "REACH THE OCEAN" && Obj.Objectives.Count >= 6);
+            foreach (var (c, p) in missed)
+                T.Check($"The missed can is exactly where it fell ({(c.transform.position - p).magnitude:F3} m)", (c.transform.position - p).magnitude < 0.05f);
+            var hole = F<SandHole>();
+            T.Check("The hole is still open for the hatchling", hole.Dug01 > 0.99f);
+            var gar = F<LightGarland>();
+            T.Check("The light string is still on", gar.LightsOn);
+            var music = F<MusicPlayer>();
+            var hearing = F<TurtleHearing>();
+            var lp = music.Source.GetComponent<AudioLowPassFilter>();
+            T.Check($"Same song, heard through the hatchling (low-pass {lp?.cutoffFrequency:F0} Hz, volume {music.Source.volume:F2} <= 0.85)",
+                    music.IsOn && hearing.On && lp != null && lp.enabled && music.Source.volume <= 0.851f);
+            var giant = F<GiantHuman>();
+            T.Check("The giant (the human) replays the night", giant.Playing);
+            T.Check("The real flashlight and phone are with the giant (hidden)", !F<Flashlight>() || !F<Flashlight>().gameObject.activeInHierarchy);
             yield return new WaitForSeconds(2f);
-            T.Check($"Bottle dropped into the bin; progress {Obj.Get("plastic").Progress()}", bottle.InBin && Obj.Get("plastic").Progress().StartsWith("1/"));
-            foreach (var item in TrashItem.All.ToArray())
+            yield return AimAt(Sea.position + Vector3.up * 0.5f);
+            SaveView("10_hatchling_leaves_the_nest.png");
+        }
+
+        /// <summary>The hatchling's run: real crawling for short stretches, teleports to skip long ones.</summary>
+        static IEnumerator TurtleJourney(bool expectGiantFromLog)
+        {
+            var turtle = Turtle;
+            var story = F<TurtleStory>();
+            var gulls = F<GullEncounters>();
+            var route = GameObject.Find("TurtleRoute").transform;
+            Vector3 W(int i) => route.GetChild(i).position;
+            float Yaw(Vector3 from, Vector3 to) { Vector3 d = to - from; return Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg; }
+            IEnumerator Teleport(Vector3 p, Vector3 look)
             {
-                if (item.Cleared) continue;
-                var rb = item.GetComponent<Rigidbody>();
-                rb.position = bin.transform.position + Vector3.up * 0.3f;
-                item.transform.position = rb.position;
-                yield return new WaitForSeconds(0.25f);
+                turtle.TeleportTo(MeshKit.OnGround(p, 0.02f), Yaw(p, look));
+                yield return null;
+                yield return null;
             }
-            yield return new WaitForSeconds(1.5f);
-            T.Check($"All plastic removed -> objective done ({Obj.Get("plastic").Progress()})", State("plastic") == ObjectiveState.Done);
 
-            // ---- 3. hole
-            var hole = Object.FindFirstObjectByType<SandHole>();
-            SandBucket bucket = null;
-            foreach (var b in Object.FindObjectsByType<SandBucket>(FindObjectsSortMode.None))
-                if (bucket == null || (b.transform.position - hole.transform.position).sqrMagnitude < (bucket.transform.position - hole.transform.position).sqrMagnitude) bucket = b;
-            yield return WalkTo(bucket.transform.position, 1.2f);
-            yield return AimAt(Center(bucket.gameObject));
-            yield return Tap(Key.E);
-            T.Check("E picks up the bucket", interactor.Held != null && interactor.Held.GetComponent<SandBucket>() == bucket);
-            yield return WalkTo(hole.transform.position, 1.6f);
-            yield return AimAt(hole.transform.position);
-            yield return HoldRight(2.6f);
-            T.Check($"Sand pours into the hole gradually ({hole.Fill01 * 100:F0}%)", hole.Fill01 > 0.4f && hole.Fill01 < 0.99f);
-            // scoop: aim the bucket at open sand next to the player (pushes it into the sand)
-            Vector3 sand = PlayerRig.Head.position + PlayerRig.FlatForward * 0.9f + Vector3.Cross(Vector3.up, PlayerRig.FlatForward) * 0.6f;
-            sand = TurtleJourney.Ground(sand);
-            yield return AimAt(sand);
-            yield return new WaitForSeconds(0.8f);
-            {
-                Vector3 mouth = bucket.transform.TransformPoint(Vector3.up * 0.34f);
-                FootprintSystem.GroundHit(mouth, out RaycastHit gh);
-                var gf = bucket.GetComponent<GrabFeedback>();
-                Debug.Log($"[SameShoreTest] DIAG scoop target={interactor.Target?.name} bucket={bucket.Sand:F2} held={interactor.Held?.name} " +
-                          $"tilt={Vector3.Angle(bucket.transform.up, Vector3.up):F0} pos={bucket.transform.position.y:F3} mouth={mouth.y:F3} ground={gh.point.y:F3} isHeld={gf?.IsHeld}");
-            }
-            T.Check($"Aiming the bucket at the sand scoops a new load ({bucket.Sand:F2})", bucket.Sand > 0.95f);
-            yield return AimAt(hole.transform.position);
-            yield return Hold(2.6f, Key.F);
-            T.Check("Second bucket fills the hole -> objective done", hole.IsFilled && State("hole") == ObjectiveState.Done);
-            yield return Tap(Key.E);
+            // crawl out of the nest
+            Vector3 p0 = turtle.transform.position;
+            yield return Hold(3f, Key.W);
+            float moved = Flat(turtle.transform.position - p0);
+            T.Check($"W crawls (moved {moved:F2} m in 3 s)", moved > 0.2f && moved < 1.2f);
+            float yaw0 = turtle.transform.eulerAngles.y;
+            yield return Hold(1f, Key.D);
+            T.Check($"D turns the body slowly ({Mathf.DeltaAngle(yaw0, turtle.transform.eulerAngles.y):F0} deg in 1 s)", Mathf.Abs(Mathf.DeltaAngle(yaw0, turtle.transform.eulerAngles.y)) > 10f && Mathf.Abs(Mathf.DeltaAngle(yaw0, turtle.transform.eulerAngles.y)) < 45f);
 
-            // ---- 4. chair
-            var chair = Object.FindFirstObjectByType<BeachChairMarker>();
-            yield return WalkTo(chair.transform.position, 1.3f);
-            yield return AimAt(Center(chair.gameObject));
-            yield return Tap(Key.E);
-            T.Check("E grabs the chair", interactor.Held != null && interactor.Held.GetComponent<BeachChairMarker>() != null);
-            var safe = GameObject.Find("ChairSafeZone").transform;
-            yield return WalkTo(safe.position, 1.5f, 40f);
-            yield return AimAt(safe.position);
-            yield return new WaitForSeconds(0.2f);
-            yield return Tap(Key.E);
-            yield return new WaitForSeconds(1.5f);
-            T.Check($"Chair carried off the path -> objective done", State("chair") == ObjectiveState.Done);
-            T.Check($"Current objective is now the nest ({Obj.Current?.Id})", Obj.Current != null && Obj.Current.Id == "nest");
+            // gull pass (no attack)
+            yield return Teleport(W(1), W(2));
+            yield return Hold(2.5f, Key.W);
+            yield return WaitFor(() => gulls.FirstDone, 15f);
+            T.Check("First gull encounter: a shadow passes over (no attack)", gulls.FirstDone && !gulls.Struck && turtle.enabled);
 
-            // ---- 5. nest
-            var nest = Object.FindFirstObjectByType<NestController>();
-            yield return WalkTo(nest.transform.position, 1.5f, 40f);
-            yield return WaitFor(() => FindButton("Become the hatchling") != null, 30f);
-            T.Check("Nest: a hatchling breaks through, then the choice appears", FindButton("Become the hatchling") != null && FindButton("Go back") == null);
-            SaveView("03_nest_choice.png");
-            yield return ClickButton("Become the hatchling");
-            yield return WaitFor(() => GM.Current == GameState.Transition || GM.Current == GameState.Hatchling, 30f);
-            T.Check("Fades to black with her breath before the change", ScreenFader.Instance.Alpha > 0.9f);
-            yield return SkipStoryUntil(TurtleReady, 120f);
-            T.Check($"Hatchling journey '{Obj.Title}'", TurtleReady() && Obj.Title == "YOUR JOURNEY");
-            yield return Click();   // capture the mouse again after the nest choice
-            float eye = PlayerRig.Head.position.y - Turtle.transform.position.y;
-            T.Check($"Eyes about 8 cm above the sand ({eye * 100:F1} cm), scale {PlayerRig.Scale:F2}", eye > 0.06f && eye < 0.11f && Mathf.Abs(PlayerRig.Scale - 0.05f) < 0.001f);
-            yield return AimAt(PlayerRig.Head.position + Turtle.transform.forward * 0.4f - Vector3.up * 1f);
-            SaveView("04_hatchling_flippers.png");
-            yield return Hold(0.4f, Key.W);
-            yield return AimAt(PlayerRig.Head.position + Turtle.transform.forward * 0.4f - Vector3.up * 1f);
-            SaveView("04b_hatchling_stroke.png");
-            yield return AimAt(PlayerRig.Head.position + Turtle.transform.forward);
-            SaveView("05_hatchling_view.png");
-            var beach = Object.FindFirstObjectByType<BeachStateTracker>();
-            T.Check("Beach changes persisted (light off, plastic gone, hole filled, chair moved)",
-                    !lamp.IsOn && beach.TrashCleared == beach.TrashTotal && hole.IsFilled && beach.ChairClear);
+            // lights pull
+            yield return Teleport(W(2), W(3));
+            yield return Hold(4f, Key.W);
+            T.Check($"The light string pulls her off course ({story.SecondsOffCourse:F1} s)", story.SecondsOffCourse > 0.5f || turtle.ArtificialShare > 0.2f);
+            yield return AimAt(W(1) + Vector3.up * 1.4f);
+            SaveView("11_lights_from_8cm.png");
 
-            // ---- crawl out of the nest and towards the sea
-            yield return Hold(20f, Key.W, () => State("ocean") == ObjectiveState.Done);
-            T.Check("Leave the nest / Find the ocean completed by crawling", State("nest") == ObjectiveState.Done && State("ocean") == ObjectiveState.Done);
+            // cans + hole
+            yield return Teleport(Vector3.Lerp(W(3), W(4), 0.3f), W(5));
+            yield return Hold(3f, Key.W);
+            yield return AimAt(W(5));
+            SaveView("12_cans_and_hole.png");
+            var hole = F<SandHole>();
+            Vector3 into = hole.transform.position + (W(5) - hole.transform.position).normalized * 0.1f;
+            yield return Teleport(hole.transform.position - (W(6) - W(4)).normalized * 0.55f, hole.transform.position);
+            yield return Hold(4f, Key.W, () => story.FellInHole);
+            T.Check("She slides into the hole the human dug", story.FellInHole);
+            yield return Hold(12f, Key.W, () => SeaD(turtle.transform.position) < SeaD(hole.transform.position) - 1f || story.PassedHole);
+            T.Check($"...and climbs out (not trapped): {Flat(turtle.transform.position - hole.transform.position):F2} m from its centre", Flat(turtle.transform.position - hole.transform.position) > hole.Radius * 0.6f);
 
-            // ---- seagull: dodge by crawling out of the circle
-            var journey = Object.FindFirstObjectByType<TurtleJourney>();
-            Vector3 cp = Sea.position - Vector3.forward * 9.4f;
-            Turtle.TeleportTo(TurtleJourney.Ground(cp) + Vector3.up * 0.02f, 0f);
-            yield return Hold(60f, Key.W, () => Gull.Current == GullHunt.Phase.Warning || journey.DistanceToSea < 3f);
-            if (Gull.Current == GullHunt.Phase.Warning)
-            {
-                SaveView("06_gull_warning.png");
-                T.Check("Gull warning: hover + shrinking circle on the sand", GameObject.Find("StrikeRing") != null);
-                yield return Hold(3.5f, Key.W);
-                T.Check($"Crawling out of the circle dodges the dive (dodged {Gull.Dodged}, strikes {Gull.Strikes})", Gull.Dodged >= 1 && Gull.Strikes == 0);
-            }
-            else T.Check("Gull attacked before the sea", false);
-            yield return Hold(80f, Key.W, () => GM.Current == GameState.End);
-            T.Check($"Escape the danger completed ({State("danger")})", State("danger") == ObjectiveState.Done);
-            T.Check("Reaching the swash ends the run", GM.Current == GameState.End);
-            yield return new WaitForSeconds(1.2f);
-            SaveView("07_final_wave.png");
-            yield return WaitFor(() => FindButton("Main menu") != null, 60f);
-            var body = GameObject.Find("EndScreen").GetComponentsInChildren<TextMeshPro>();
-            string all = string.Join("\n", System.Array.ConvertAll(body, x => x.text));
-            T.Check("Ending: 'Great Job' + positive consequences + closing line",
-                    all.Contains("Great Job") && all.Contains("You turned off the flashlight") && all.Contains("You removed the plastic") &&
-                    all.Contains("You filled the hole") && all.Contains("You moved the chair") && all.Contains("Same shore. Different lives."));
-            SaveView("08_summary.png");
+            // gull attack (non-lethal)
+            yield return Teleport(W(6) + Vector3.forward * 0.1f, W(7));
+            yield return WaitFor(() => gulls.SecondDone, 25f);
+            T.Check($"Second gull encounter resolved ({(gulls.Struck ? "struck, stunned" : "dodged")}) - never lethal", gulls.SecondDone && turtle.enabled && GM.Current == GameState.Hatchling);
 
+            // the bag
+            var bag = F<WindBag>();
+            Vector3 bp = bag.transform.position;
+            yield return Teleport(bp - (W(8) - W(6)).normalized * 0.8f, bp);
+            yield return Hold(3f, Key.W, () => story.BitBag);
+            if (!story.BitBag) { yield return Tap(Key.E); yield return null; }
+            T.Check("Hungry... the jellyfish is a plastic bag (bite)", story.BitBag);
+            yield return new WaitForSeconds(1f);
+            T.Check($"Discomfort: slowed ({turtle.ExternalSpeedMultiplier:F2}), not dead", turtle.ExternalSpeedMultiplier < 1f && turtle.enabled);
+            yield return AimAt(bp + Vector3.up * 0.02f);
+            SaveView("13_jellyfish_bag.png");
+            yield return new WaitForSeconds(6f);
+
+            // the giant and the photo
+            var giant = F<GiantHuman>();
+            yield return WaitFor(() => giant.AtPhotoSpot, 40f);
+            Vector3 gf = giant.Feet;
+            yield return Teleport(gf + (W(7) - gf).normalized * 1.9f, gf);
+            yield return AimAt(gf + Vector3.up * 1.2f);
+            SaveView("14_the_giant.png");
+            yield return Hold(5f, Key.W, () => giant.PhotoDone);
+            yield return WaitFor(() => giant.PhotoDone, 10f);
+            float peak = 0;
+            float until = Time.realtimeSinceStartup + 3f;
+            while (Time.realtimeSinceStartup < until) { peak = Mathf.Max(peak, ScreenFader.Instance.Alpha); yield return null; }
+            T.Check($"The giant bends down and takes THE photo: moderate glare (peak {peak:F2} < 0.7, no white-out)", giant.PhotoDone && peak > 0.1f && peak < 0.7f);
+            if (expectGiantFromLog) T.Check("The giant stands where the human stood for the photo", Flat(gf - F<BeachLog>().PhotoFeet) < 0.6f);
+            yield return new WaitForSeconds(3f);
+
+            // almost there, the sea, the ending
+            Vector3 shore = W(route.childCount - 1);
+            yield return Teleport(shore - Vector3.forward * 1.5f, shore + Vector3.forward);
+            yield return Hold(12f, Key.W, () => GM.Current == GameState.End);
+            T.Check("Almost there...", story.AlmostThere);
+            T.Check("Reached the water -> ending", GM.Current == GameState.End);
+            yield return WaitFor(() => FindButton("Main menu") != null, 30f);
+            var title = GameObject.Find("EndScreen")?.GetComponentInChildren<TextMeshPro>();
+            T.Check($"End screen: SAME SHORE ({title?.text})", title != null && title.text.Contains("SAME SHORE") && FindButton("Experience it again") != null);
+            T.Check("The final death happened only at the goal (the gulls never caught her before)", !gulls.Struck || turtle != null);
+            SaveView("15_end.png");
             yield return ClickButton("Main menu");
-            yield return WaitFor(() => GameObject.Find("StartMenu") != null && GM != null && GM.Current == GameState.Intro, 60f);
-            T.Check("'Main menu' reloads the scene to the start menu", GameObject.Find("StartMenu") != null && Object.FindFirstObjectByType<Flashlight>().IsOn);
+            yield return WaitFor(() => GameObject.Find("StartMenu") != null && GM.Current == GameState.Intro, 20f);
+            T.Check("Back to the main menu", GM.Current == GameState.Intro);
             T.Finish();
         }
 
-        // ================================================================== DIRTY RUN
-        public static IEnumerator Dirty(SmokeTestRunner t)
+        // ================================================================== TURTLE ONLY
+        public static IEnumerator TurtleOnly(SmokeTestRunner t)
         {
             T = t;
             Setup();
             Object.DontDestroyOnLoad(t.gameObject);
-            yield return ClickButton("Full Experience");
-            yield return SkipStoryUntil(HumanReady, 120f);
-            yield return Click();
-            var nest = Object.FindFirstObjectByType<NestController>();
-            yield return WalkTo(nest.transform.position, 1.5f, 40f);
-            yield return WaitFor(() => FindButton("Go back") != null, 30f);
-            T.Check("Nest with work left: choice offers 'Go back' and 'Become the hatchling'", FindButton("Go back") != null && FindButton("Become the hatchling") != null);
-            yield return ClickButton("Go back");
-            yield return new WaitForSeconds(0.5f);
-            T.Check("'Go back' closes the choice and keeps the human phase", FindButton("Go back") == null && GM.Current == GameState.Human);
-            yield return Click();   // capture the mouse again (desktop: panels free the cursor)
-            Vector3 away = PlayerRig.Head.position + PlayerRig.FlatForward * -3.5f;
-            yield return WalkTo(away, 0.6f);
-            yield return WalkTo(nest.transform.position, 1.5f, 40f);
-            yield return WaitFor(() => FindButton("Become the hatchling") != null, 30f);
-            yield return ClickButton("Become the hatchling");
-            yield return new WaitForSeconds(0.4f);
-            T.Check("Unfinished objectives are marked as left behind",
-                    State("flashlight") == ObjectiveState.Left && State("plastic") == ObjectiveState.Left &&
-                    State("hole") == ObjectiveState.Left && State("chair") == ObjectiveState.Left && State("nest") == ObjectiveState.Done);
-            yield return SkipStoryUntil(TurtleReady, 120f);
-            T.Check("Hatchling phase starts", TurtleReady());
-
-            // ---- the gull catches a hatchling that stays still in the open -> checkpoint respawn
-            var journey = Object.FindFirstObjectByType<TurtleJourney>();
-            yield return Hold(3f, Key.W);
-            Vector3 cp = Sea.position - Vector3.forward * 9.4f + Vector3.right * 2.5f;
-            Turtle.TeleportTo(TurtleJourney.Ground(cp) + Vector3.up * 0.02f, 0f);
-            yield return Hold(1.5f, Key.W);   // pass the 9.6 m checkpoint
-            Vector3 open = Sea.position - Vector3.forward * 8.3f + Vector3.right * 2.5f;
-            Turtle.TeleportTo(TurtleJourney.Ground(open) + Vector3.up * 0.02f, 0f);   // into the gull's hunting zone, then stay still
-            yield return WaitFor(() => !Turtle.enabled && Gull.Strikes >= 2, 180f);
-            T.Check($"Staying still: the gull strikes twice and catches her ({Gull.Strikes})", Gull.Strikes >= 2);
-            yield return WaitFor(() => Turtle.enabled && ScreenFader.Instance.Alpha < 0.05f, 30f);
-            T.Check($"Respawned at a checkpoint, controls back ({journey.DistanceToSea:F1} m from the sea)", Turtle.enabled && journey.DistanceToSea > 8.5f && journey.DistanceToSea < 11f);
-            T.Check("The seagull episode can start again", Gull.Current == GullHunt.Phase.Idle || Gull.Active);
-
-            // ---- pause menu
-            yield return Tap(Key.Escape);
-            yield return null;
-            T.Check("Esc opens the pause menu (time stopped)", GameObject.Find("PauseMenu") != null && Time.timeScale == 0f);
-            yield return ClickButton("Restart from checkpoint");
-            yield return WaitFor(() => Turtle.enabled && ScreenFader.Instance.Alpha < 0.05f && Time.timeScale == 1f, 30f);
-            T.Check("'Restart from checkpoint' resumes the journey", Turtle.enabled && Time.timeScale == 1f && GameObject.Find("PauseMenu") == null);
-
-            // ---- straight to the surf
-            Vector3 near = Sea.position - Vector3.forward * 1.3f;
-            Turtle.TeleportTo(TurtleJourney.Ground(near) + Vector3.up * 0.02f, 0f);
-            yield return Hold(30f, Key.W, () => GM.Current == GameState.End);
-            yield return WaitFor(() => FindButton("Try other choices") != null, 60f);
-            var body = GameObject.Find("EndScreen").GetComponentsInChildren<TextMeshPro>();
-            string all = string.Join("\n", System.Array.ConvertAll(body, x => x.text));
-            T.Check("Ending acknowledges what was left: flashlight, plastic, hole, chair",
-                    all.Contains("The flashlight stayed on") && all.Contains("pieces of plastic stayed on the sand") &&
-                    all.Contains("The hole was still open") && all.Contains("The chair") && all.Contains("A seagull caught her"));
-            if (!all.Contains("A seagull caught her")) Debug.Log("[SameShoreTest] DIAG summary: " + all);
-            yield return ClickButton("Crawl again");
+            yield return ClickButton("Turtle Experience");
             yield return SkipStoryUntil(TurtleReady, 90f);
-            T.Check("'Crawl again' restarts the hatchling at the nest with the same beach",
-                    TurtleReady() && Object.FindFirstObjectByType<Flashlight>().IsOn);
-            T.Finish();
+            var log = F<BeachLog>();
+            var game = F<CanTossGame>();
+            yield return WaitFor(() => game.Done, 15f);
+            T.Check($"Default beach: cans on the sand ({log.CansMissed} missed)", log.UsedDefaults && game.Done && log.CansMissed >= 1);
+            T.Check("Default beach: castle and open hole", F<SandcastleSite>().Finished && F<SandHole>().Dug01 > 0.99f);
+            T.Check("Default beach: bag on the wet sand", F<WindBag>().State == WindBag.Phase.Landed);
+            T.Check("Default beach: lights on, music on, fireworks done", F<LightGarland>().LightsOn && F<MusicPlayer>().IsOn && F<FireworksShow>().Finished);
+            T.Check("The giant follows a default night walk", F<GiantHuman>().Playing);
+            yield return TurtleJourney(false);
         }
 
-        // ================================================================== XR PATH (no desktop mode)
-        public static IEnumerator Xr(SmokeTestRunner t)
+        // ================================================================== HUMAN ONLY (skips) -> continue as hatchling
+        public static IEnumerator HumanOnly(SmokeTestRunner t)
         {
             T = t;
             Setup();
-            T.Check("Desktop mode is OFF (XR path)", !DesktopTestingMode.Active && Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null);
-            yield return Tap(Key.Digit1);                    // menu hotkey (controllers would use the laser)
-            yield return SkipStoryUntil(HumanReady, 120f);
-            T.Check("XR: human phase with objectives", HumanReady());
-            var human = Object.FindFirstObjectByType<HumanController>();
-            var nest = Object.FindFirstObjectByType<NestController>();
-            var spot = new GameObject("~spot").transform;
-            spot.position = nest.transform.position - Vector3.forward * 1.2f;
-            human.PlaceAt(spot);
-            yield return WaitFor(() => FindButton("Become the hatchling") != null, 30f);
-            yield return Tap(Key.Digit2);
-            yield return SkipStoryUntil(TurtleReady, 120f);
-            T.Check("XR: hatchling phase", TurtleReady() && Mathf.Abs(PlayerRig.Scale - 0.05f) < 0.001f);
-            Vector3 p0 = Turtle.transform.position;
-            yield return Hold(4f, Key.W);
-            T.Check($"XR: stick (W) crawls ({Flat(Turtle.transform.position - p0):F2} m)", Flat(Turtle.transform.position - p0) > 0.3f);
-            Turtle.TeleportTo(TurtleJourney.Ground(Sea.position - Vector3.forward * 1.2f) + Vector3.up * 0.02f, 0f);
-            yield return Hold(30f, Key.W, () => GM.Current == GameState.End);
-            yield return WaitFor(() => FindButton("Main menu") != null, 60f);
-            T.Check("XR: ending reached with buttons", FindButton("Main menu") != null);
+            Object.DontDestroyOnLoad(t.gameObject);
+            yield return ClickButton("Human Experience");
+            yield return SkipStoryUntil(HumanReady, 90f);
+            var director = Director;
+            int skips = 0;
+            float end = Time.realtimeSinceStartup + 400f;
+            while (FindButton("Continue as the hatchling") == null && Time.realtimeSinceStartup < end)
+            {
+                if (Obj.Running && Obj.Current != null && ScreenFader.Instance.Alpha < 0.05f)
+                {
+                    string id = Obj.Current.Id;
+                    director.RequestSkip();
+                    skips++;
+                    yield return WaitFor(() => Obj.Current == null || Obj.Current.Id != id || !Obj.Running, 20f);
+                }
+                var sub = GameObject.Find("Subtitle");
+                if (sub != null && sub.activeSelf) yield return Tap(Key.Space);
+                yield return null;
+            }
+            T.Check($"Every activity can be skipped from the pause menu ({skips} skips)", skips >= 7);
+            T.Check("Human-only ending panel offers to continue as the hatchling", FindButton("Continue as the hatchling") != null);
+            var log = F<BeachLog>();
+            T.Check($"Skipped steps still leave their trace: {log.Summary().Replace("\n", " | ")}", log.CastleBuilt && log.BagLost && log.LightsInstalled && log.PhotoTaken);
+            yield return ClickButton("Continue as the hatchling");
+            yield return SkipStoryUntil(TurtleReady, 90f);
+            T.Check("Continues into the hatchling's act with the same beach", TurtleReady() && F<GiantHuman>().Playing);
+            T.Finish();
+        }
+
+        // ================================================================== XR path (no desktop mode): story-level checks
+        public static IEnumerator Xr(SmokeTestRunner t)
+        {
+            T = t;
+            T.Check("Desktop Testing mode is OFF", !DesktopTestingMode.Active);
+            var director = Director;
+            var menuButton = FindButton("Full Experience");
+            T.Check("Menu button exists (laser + trigger in XR)", menuButton != null);
+            menuButton.Click();
+            yield return WaitFor(HumanReady, 60f);
+            T.Check("Human phase starts seated", F<HumanSeat>().Seated);
+            T.Check("Two VR hands (grip grab, trigger use)", VRHand.Left != null && VRHand.Right != null);
+            float end = Time.realtimeSinceStartup + 400f;
+            while (GM.Current != GameState.Hatchling && Time.realtimeSinceStartup < end)
+            {
+                if (GM.Current == GameState.Human && Obj.Running && Obj.Current != null) { director.RequestSkip(); yield return new WaitForSeconds(0.5f); }
+                yield return null;
+            }
+            yield return WaitFor(TurtleReady, 60f);
+            T.Check("XR path reaches the hatchling's act", TurtleReady());
             T.Finish();
         }
     }

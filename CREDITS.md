@@ -32,6 +32,22 @@ roughness → mapa metallic/smoothness de URP) y se guardaron en `Assets/SameSho
 - **Shaders** (`Assets/SameShore/Shaders`): océano, oleaje en la orilla, fundido VR, visión de la cría,
   overlay de interfaz y objetos lejanos del cielo.
 
+## Storyboard v2 (rama `feature/same-shore-storyboard-v2`): todo es propio
+
+- **Objetos de playa** generados por código en el constructor de escena (`MeshKit`, `SameShoreSceneBuilder.Story.cs`):
+  toalla, sombrilla, silla de playa, nevera, mesita, latas, café, gafas de sol, altavoz con botones,
+  bolsa de playa, sándwich, cubo y pala, torres y murallas del castillo, papelera, batería de fuegos y
+  su mando, postes y guirnalda con bombillas, carrete, móvil y la cabeza del "gigante".
+  Texturas de rayas y el punto luminoso de los fuegos: procedurales (`Assets/SameShore/Generated`).
+- **Sonidos nuevos** (`Tools/Audio/synth_audio_v3.py`, numpy/scipy): música del altavoz (ukelele sintetizado,
+  melodía propia), lanzamiento, explosión y eco de fuegos artificiales, latas, sorbo, mordisco, envoltorio,
+  ráfaga de viento, pala, arena, cubo, castillo terminado, enganche y encendido de luces, obturador, flash,
+  botón, arcada de la tortuga, plástico, aleteo rápido y ataque de gaviota.
+- **Cielo día → atardecer → noche** (`Shaders/SkyCycle.shader`): degradado procedural con sol; la mitad
+  nocturna usa el HDRI CC0 `qwantani_night_puresky` que ya estaba en el proyecto.
+- Se reutilizan los modelos propios anteriores (cría, gaviota, botella PET, bolsa de plástico, cuerpo humano)
+  y los de Poly Haven de la tabla (rocas, conchas, madera, hierba, linterna).
+
 ## Recursos que ya estaban en el proyecto
 
 - Silla `plastic_monobloc_chair_01`, texturas de arena `aerial_beach_01` / `sand_03` y cielo

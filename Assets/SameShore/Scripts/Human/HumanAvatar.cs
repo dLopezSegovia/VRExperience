@@ -33,6 +33,15 @@ namespace SameShore
         [Tooltip("Show the mitten hands only when the controller hands are not drawn (desktop / untracked).")]
         public bool autoHideHands = true;
 
+        Transform _seat;
+        /// <summary>Sitting on the beach chair: hips on the seat, legs stretched forward, feet on the sand.</summary>
+        public void SetSeat(Transform seat)
+        {
+            _seat = seat;
+            if (seat == null) ResetFeet();
+        }
+        public bool Seated => _seat != null;
+
         float _bodyYaw;
         Vector3 _lastRoot;
         Vector3 _vel;
@@ -88,6 +97,7 @@ namespace SameShore
 
             Transform head = PlayerRig.Head;
             Transform root = PlayerRig.Root;
+            if (_seat != null) { SeatedPose(head); return; }
             float dt = Mathf.Max(Time.deltaTime, 1e-4f);
             Vector3 rootPos = root != null ? root.position : head.position;
             Vector3 headFlatVel = (rootPos - _lastRoot) / dt;
@@ -136,6 +146,32 @@ namespace SameShore
             Leg(hipR, _right, fwd, right, thighR, shinR, footR);
         }
 
+        void SeatedPose(Transform head)
+        {
+            Vector3 f = Flat(_seat.forward), r = Vector3.Cross(Vector3.up, f);
+            _bodyYaw = Mathf.Atan2(f.x, f.z) * Mathf.Rad2Deg;
+            float headYaw = head.eulerAngles.y;
+            Vector3 neck = head.position + Quaternion.Euler(0, headYaw, 0) * new Vector3(neckFromEye.x, 0, neckFromEye.z) + Vector3.up * neckFromEye.y;
+            Vector3 hips = _seat.position + Vector3.up * 0.06f - f * 0.04f;
+            Vector3 spine = neck - hips;
+            Place(torso, hips, spine, f, Mathf.Clamp(spine.magnitude / torsoLength, 0.85f, 1.1f));
+            Vector3 chest = hips + spine.normalized * (torsoLength * 0.86f);
+            Arm(Hand.Left, chest - r * shoulderHalfWidth, -r, f, 0f, upperArmL, forearmL, handL);
+            Arm(Hand.Right, chest + r * shoulderHalfWidth, r, f, 0f, upperArmR, forearmR, handR);
+            foreach (int side in new[] { -1, 1 })
+            {
+                Vector3 hip = hips + r * (hipHalfWidth * side) - Vector3.up * 0.02f;
+                Vector3 foot = Ground(hip + f * 0.72f + r * (0.05f * side));
+                Vector3 ankle = foot + Vector3.up * 0.075f;
+                Vector3 knee = SolveIK(hip, ankle, thigh, shin, hip + f * 0.6f + Vector3.up * 0.6f);
+                Place(side < 0 ? thighL : thighR, hip, knee - hip, f, 1f);
+                Place(side < 0 ? shinL : shinR, knee, ankle - knee, f, 1f);
+                Transform ft = side < 0 ? footL : footR;
+                if (ft != null) ft.SetPositionAndRotation(ankle, Quaternion.LookRotation(f, Vector3.up));
+                (side < 0 ? _left : _right).plant = foot;
+            }
+        }
+
         void Arm(Hand hand, Vector3 shoulder, Vector3 outward, Vector3 fwd, float swing, Transform upper, Transform fore, Transform handT)
         {
             Vector3 wrist;
@@ -176,9 +212,8 @@ namespace SameShore
 
         static Transform DesktopHeldTransform()
         {
-            if (!DesktopTestingMode.Active || DesktopTestingMode.Instance == null) return null;
-            var di = DesktopTestingMode.Instance.GetComponent<DesktopInteractor>();
-            return di != null && di.Held != null ? di.Held.transform : null;
+            if (!DesktopTestingMode.Active) return null;
+            return VRHand.Right != null && VRHand.Right.Held != null ? VRHand.Right.Held.transform : null;
         }
 
         void StepFoot(Foot f, Vector3 ideal, Foot other)

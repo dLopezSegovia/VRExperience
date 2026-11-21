@@ -38,9 +38,11 @@ namespace SameShore.EditorTools
                 Vector3 pos = new Vector3(gx, ground + up, gz);
                 string[] r = p[2].Split(',');
                 bool turtle = p.Length > 4 && p[4] == "t";
+                var dayCycle = Object.FindFirstObjectByType<DayCycle>();
+                if (dayCycle != null) dayCycle.Set(p.Length > 5 ? F(p[5]) : (turtle ? 2f : 0f));
                 if (human) human.weight = turtle ? 0 : 1;
                 if (hatch) hatch.weight = turtle ? 1 : 0;
-                RenderSettings.fogDensity = turtle ? 0.03f : 0.012f;
+                if (turtle) RenderSettings.fogDensity = 0.03f;
                 SameShoreInspector.Shot(Path.Combine(outDir, p[0] + ".png"), pos, Quaternion.Euler(F(r[0]), F(r[1]), 0),
                                         p.Length > 3 ? F(p[3]) : 90f, turtle ? 0.003f : 0.05f);
             }
