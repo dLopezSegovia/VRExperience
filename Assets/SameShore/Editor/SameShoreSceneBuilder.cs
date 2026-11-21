@@ -1160,11 +1160,11 @@ namespace SameShore.EditorTools
             foreach (float dx in new[] { -10f, 4f, 18f })
             {
                 channels.Add(new AmbientAudio.Channel { name = "Waves", source = Src("Waves", C("ocean_waves_loop"), L(dx, -2f, 0.5f), 0.85f, 7f, 90f), humanVolume = 0.85f, hatchlingVolume = 0f });
-                channels.Add(new AmbientAudio.Channel { name = "WavesClose", source = Src("WavesHatchling", C("ocean_waves_close_loop"), L(dx, -2f, 0.5f), 0.7f, 9f, 90f), humanVolume = 0f, hatchlingVolume = 1f });
+                channels.Add(new AmbientAudio.Channel { name = "WavesClose", source = Src("WavesHatchling", C("ocean_waves_close_loop"), L(dx, -2f, 0.5f), 0.7f, 9f, 90f), humanVolume = 0f, hatchlingVolume = 0.5f });   // the sea stays under the human music for the hatchling
             }
-            channels.Add(new AmbientAudio.Channel { name = "Wind", source = Src("Wind", C("wind_loop"), L(0, 8, 2), 0f, 1, 10), humanVolume = 0.32f, hatchlingVolume = 0.16f, hatchlingLowpass = 2500f });
+            channels.Add(new AmbientAudio.Channel { name = "Wind", source = Src("Wind", C("wind_loop"), L(0, 8, 2), 0f, 1, 10), humanVolume = 0.32f, hatchlingVolume = 0.08f, hatchlingLowpass = 2500f });
             // (the music now comes from the human's own speaker, see MusicPlayer / TurtleHearing)
-            channels.Add(new AmbientAudio.Channel { name = "Voices", source = Src("PeopleVoices", C("voices_muffled_loop"), new Vector3(-6f, 6f, -32f), 1f, 10f, 120f), humanVolume = 0.12f, hatchlingVolume = 0.3f, humanLowpass = 2500f, hatchlingLowpass = 520f });
+            channels.Add(new AmbientAudio.Channel { name = "Voices", source = Src("PeopleVoices", C("voices_muffled_loop"), new Vector3(-6f, 6f, -32f), 1f, 10f, 120f), humanVolume = 0.12f, hatchlingVolume = 0.12f, humanLowpass = 2500f, hatchlingLowpass = 520f });
             var amb = systems.gameObject.AddComponent<AmbientAudio>();
             var so = new SerializedObject(amb);
             var arr = so.FindProperty("channels");
@@ -1223,7 +1223,7 @@ namespace SameShore.EditorTools
             tcc.height = 0.12f;
             tcc.center = new Vector3(0, 0.06f, 0);
             tcc.stepOffset = 0.03f;
-            tcc.slopeLimit = 40f;
+            tcc.slopeLimit = 50f;      // walks into and out of the bowl and over the berm toes (the hidden limits keep the corridor)
             tcc.skinWidth = 0.005f;
             tcc.minMoveDistance = 0f;
             var turtle = body.GetComponent<TurtleController>();

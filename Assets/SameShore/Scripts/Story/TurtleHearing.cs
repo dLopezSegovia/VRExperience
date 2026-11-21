@@ -9,7 +9,7 @@ namespace SameShore
     /// on, and it becomes the loudest thing on the beach for it: a booming, smeared, too-close human noise.
     ///
     /// The mix is built with spatial audio, filtering and EQ, not with loudness: the source volume is capped at
-    /// 0.8; closer to the speaker the low-pass opens (harsher, more present highs), the distortion and the bass
+    /// 1 (the clip itself is mastered well below full scale); closer to the speaker the low-pass opens (harsher, more present highs), the distortion and the bass
     /// pulses in the controllers grow; the sea is ducked a little (slowly) while the music dominates and comes
     /// back as the hatchling leaves the camp behind. No sudden changes: every parameter is slewed.
     /// </summary>
@@ -19,11 +19,11 @@ namespace SameShore
         [SerializeField] private AmbientAudio ambient;
         [SerializeField] private StoryTrigger musicZone;
         [SerializeField] private float bpm = 96f;
-        [SerializeField] private float maxVolume = 0.8f;
+        [SerializeField] private float maxVolume = 1f;
         [SerializeField] private float nearDistance = 1.5f;      // world metres from the speaker (~30 m for the hatchling)
         [SerializeField] private float farDistance = 12f;
         [SerializeField] private float leaveDistance = 3.2f;      // past the camp, towards the sea, the music recedes
-        [SerializeField] private float waveDuck = 0.55f;
+        [SerializeField] private float waveDuck = 0.4f;
 
         AudioLowPassFilter _lp;
         AudioDistortionFilter _dist;
@@ -63,7 +63,7 @@ namespace SameShore
             _lp.lowpassResonanceQ = 1.8f;
             _rev.reverbPreset = AudioReverbPreset.Cave;
             _chorus.dryMix = 0.7f; _chorus.wetMix1 = 0.35f; _chorus.wetMix2 = 0.25f; _chorus.depth = 0.25f; _chorus.rate = 0.6f;
-            src.minDistance = on ? 2.2f : _minDist0;
+            src.minDistance = on ? 4f : _minDist0;     // loud across the whole camp, still growing near the speaker
             src.maxDistance = on ? 40f : _maxDist0;
             src.rolloffMode = AudioRolloffMode.Logarithmic;
             src.pitch = on ? 0.94f : _pitch0;
@@ -117,7 +117,7 @@ namespace SameShore
 
             // after the camp, towards the sea, the music recedes behind the waves
             bool behind = MusicStarted && dist > leaveDistance && IsSeaward(ear);
-            float target = MusicStarted ? (behind ? 0.45f : 1f) : 0f;
+            float target = MusicStarted ? (behind ? 0.65f : 1f) : 0f;
             _zoneGain = Mathf.MoveTowards(_zoneGain, target, Time.deltaTime * (target > _zoneGain ? 0.3f : 0.18f));
 
             src.volume = Mathf.Min(maxVolume, maxVolume * _zoneGain);

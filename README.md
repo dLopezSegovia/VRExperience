@@ -86,8 +86,9 @@ cumplirse y la flecha y el marcador señalan el siguiente.
   los obstáculos. Objetivo **REACH THE OCEAN**
   con subobjetivos: salir del nido, ir hacia el brillo del mar, pasar las latas gigantes, superar el hoyo,
   vigilar el cielo, ¿comida?, pasar al gigante, llegar al mar.
-- **Latas:** las que fallaste, en el mismo sitio, enormes. **Hoyo:** si te acercas te deslizas dentro y sales
-  reptando (siempre se puede salir). **Bolsa:** *"You're hungry... Is that a jellyfish?"*: late como una
+- **Latas:** las que fallaste, en el mismo sitio, enormes. **Hoyo:** cuenco suave de 20 cm (perfil coseno, sin
+  borde abrupto); si entras, te frena, y sales reptando (siempre se puede salir). Antes el borde era más empinado
+  que el límite de pendiente de la tortuga y el CharacterController la deslizaba de lado. **Bolsa:** *"You're hungry... Is that a jellyfish?"*: late como una
   medusa; al morderla: *"It's not a jellyfish. It's a plastic bag."*, arcadas y lentitud unos segundos,
   y te recuperas.
 - **Música (trigger narrativo):** el altavoz está en silencio al salir del nido. Al cruzar la zona del
@@ -95,7 +96,9 @@ cumplirse y la flecha y el marcador señalan el siguiente.
   espacial, con paso bajo que se abre al acercarse (de ~600 Hz lejos a ~3,4 kHz junto al altavoz), distorsión
   y reverberación de cueva crecientes, tono más grave, coro, y los graves como pulsos en los mandos. Las olas
   bajan suavemente (hasta ×0,55) mientras la música domina y se recuperan al dejar atrás el campamento, donde
-  la música se aleja (×0,45). Volumen máximo 0,8; todos los cambios son graduales.
+  la música se aleja (×0,65). En la mezcla de la tortuga la música manda (volumen máximo 1, audible en todo el
+  campamento) y el mar y la playa van bajos: olas ×0,5 (y hasta ×0,4 más mientras suena la música), viento ×0,08
+  y voces ×0,12. Todos los cambios son graduales.
 - **Luces que confunden y dañan:** la guirnalda en zigzag cruza el camino cuatro veces. Bombillas con emisión
   ×11 (bloom cálido), halo aditivo por bombilla, una mancha de luz en la arena bajo cada tramo y una luz puntual
   real por tramo (intensidad 2,4, alcance 6 m: 4 luces en total, apto para Quest). Cada tramo atrae
@@ -115,8 +118,10 @@ cumplirse y la flecha y el marcador señalan el siguiente.
   (con la linterna encendida si la llevabas) y, en el **mismo sitio** donde hiciste la foto, se agacha, saca el
   móvil y dispara. Deslumbramiento moderado (velo cálido de ~0,55 que se desvanece en 2,4 s, sin
   estroboscopio) → *"It wasn't a monster. It was the human... it was you, taking the perfect photo."*
-- **Final:** *"Almost there..."*, la ola cubre la vista, oscuridad. Parece que lo ha conseguido; en la oscuridad,
-  el chillido de una gaviota que se acerca, aleteo, el golpe, silencio. **SAME SHORE** ·
+- **Final:** *"Almost there..."*. Llega la ola y, a la vez, una gaviota baja **de frente** desde el mar, chilla, la
+  atrapa y se la lleva por los aires sobre el agua (unos 3 m de subida en 3,6 s). Para el confort, la vista no
+  gira, el ascenso es suave y la pantalla se oscurece progresivamente hasta el negro. En la oscuridad, un
+  último graznido. **SAME SHORE** ·
   *"One beach. Two bodies. Two very different worlds."* · *"What seemed harmless to one became a struggle for
   the other."* → *Experience it again* / *Main menu*. La muerte solo ocurre aquí.
 

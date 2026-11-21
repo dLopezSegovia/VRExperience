@@ -512,15 +512,15 @@ namespace SameShore.Tests
                 yield return Teleport(W(4), music.transform.position);
                 yield return new WaitForSeconds(6f);
                 var lp = music.Source.GetComponent<AudioLowPassFilter>();
-                T.Check($"Near the speaker it dominates the mix (volume {music.Source.volume:F2} <= 0.8, low-pass {lp.cutoffFrequency:F0} Hz, waves x{ambient.WaveDuck:F2})",
-                        music.Source.isPlaying && music.Source.volume > 0.4f && music.Source.volume <= 0.801f && lp.cutoffFrequency > 1500f && ambient.WaveDuck < 0.8f);
-                float near = music.Source.volume;
+                T.Check($"Near the speaker it dominates the mix (volume {music.Source.volume:F2}, low-pass {lp.cutoffFrequency:F0} Hz, waves x{ambient.WaveDuck:F2})",
+                        music.Source.isPlaying && music.Source.volume > 0.8f && lp.cutoffFrequency > 1500f && ambient.WaveDuck < 0.5f);
+                float near = music.Source.volume, nearDuck = ambient.WaveDuck;
                 // past the camp but before the bag, the second gull and the giant (left of the castle/hole)
                 Vector3 past = W(6) + Vector3.left * 1.3f + Vector3.forward * 0.7f;
                 yield return Teleport(past, past + Vector3.forward);
                 yield return new WaitForSeconds(8f);
                 T.Check($"Leaving the camp: the music recedes ({near:F2} -> {music.Source.volume:F2}) and the waves return (x{ambient.WaveDuck:F2})",
-                        music.Source.volume < near && ambient.WaveDuck > 0.7f);
+                        music.Source.volume < near && ambient.WaveDuck > nearDuck);
             }
 
             // cans + hole
@@ -531,7 +531,11 @@ namespace SameShore.Tests
             var hole = F<SandHole>();
             Vector3 into = hole.transform.position + (W(5) - hole.transform.position).normalized * 0.1f;
             yield return Teleport(hole.transform.position - (W(6) - W(4)).normalized * 0.55f, hole.transform.position);
+            Vector3 h0 = turtle.transform.position;
             yield return Hold(4f, Key.W, () => story.FellInHole);
+            var trapCol = hole.GetComponent<Collider>();
+            Debug.Log($"[SameShoreTest] hole approach: start {Flat(h0 - hole.transform.position):F2} m from centre, end {Flat(turtle.transform.position - hole.transform.position):F2} m, " +
+                      $"moved {Flat(turtle.transform.position - h0):F2} m, y {turtle.transform.position.y - hole.transform.position.y:F2}, trap collider {(trapCol != null && trapCol.enabled)}, stunned {turtle.IsStunned}");
             T.Check("She slides into the hole the human dug", story.FellInHole);
             yield return Hold(12f, Key.W, () => SeaD(turtle.transform.position) < SeaD(hole.transform.position) - 1f || story.PassedHole);
             T.Check($"...and climbs out (not trapped): {Flat(turtle.transform.position - hole.transform.position):F2} m from its centre", Flat(turtle.transform.position - hole.transform.position) > hole.Radius * 0.6f);
@@ -590,6 +594,8 @@ namespace SameShore.Tests
             yield return Hold(12f, Key.W, () => GM.Current == GameState.End);
             T.Check("Almost there...", story.AlmostThere);
             T.Check("Reached the water -> ending", GM.Current == GameState.End);
+            yield return WaitFor(() => Director.EndingCarried, 20f);
+            T.Check($"Ending: the gull grabs her as the wave arrives and carries her off ({Director.EndingLift:F1} m up)", Director.EndingCarried && Director.EndingLift > 2f);
             T.Check($"She reached the sea with strength {vit.Strength:P0} (lights and gulls weaken, never kill)", vit.Strength >= 0.2f);
             yield return WaitFor(() => FindButton("Main menu") != null, 30f);
             var title = GameObject.Find("EndScreen")?.GetComponentInChildren<TextMeshPro>();

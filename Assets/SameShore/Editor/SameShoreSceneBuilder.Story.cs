@@ -747,7 +747,7 @@ namespace SameShore.EditorTools
             hole.transform.position = dig;
             Set(hole, "startDug", false);
             Set(hole, "radius", 0.42f);
-            Set(hole, "depth", 0.24f);
+            Set(hole, "depth", 0.2f);      // cosine bowl: max wall slope ~37 deg
             var zone = props.hole.GetComponent<TurtleZone>();
             zone.FirstEnterMessage = "";
             EditorUtility.SetDirty(zone);

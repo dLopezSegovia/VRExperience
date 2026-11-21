@@ -537,6 +537,64 @@ namespace SameShore
         }
 
         // ================================================================== ending
+        /// <summary>True when the last ending played the gull carrying her away (tests).</summary>
+        public bool EndingCarried { get; private set; }
+        /// <summary>Highest the hatchling was lifted during the ending (tests).</summary>
+        public float EndingLift { get; private set; }
+
+        /// <summary>
+        /// The ending: as the wave reaches her, a gull swoops in from the sea (in front of her, visible), grabs her
+        /// and climbs away with her over the water. Comfort: no rotation of the view, one smooth slow climb with
+        /// eased acceleration, the view darkening progressively until black; the whole lift lasts ~3.6 s.
+        /// </summary>
+        IEnumerator GullTakesHer(Seagull gull)
+        {
+            Transform body = turtle.transform;
+            Vector3 p = body.position;
+            Vector3 seaDir = sea != null ? Vector3.ProjectOnPlane(sea.position - p, Vector3.up) : Vector3.forward;
+            if (seaDir.sqrMagnitude < 0.01f) seaDir = Vector3.forward;
+            seaDir.Normalize();
+            Vector3 side = Vector3.Cross(Vector3.up, seaDir);
+
+            // 1) out of the night sky over the waves, straight at her, while the wave rushes in
+            gull.TeleportTo(p + seaDir * 9f + side * 1.5f + Vector3.up * 4.5f);
+            gull.Screech();
+            yield return new WaitForSeconds(0.5f);
+            bool arrived = false;
+            gull.Dive(p + Vector3.up * 0.1f, () => arrived = true);
+            AudioOneShot.Play2D(SameShoreAssets.I.Clip("wings_fast"), 0.8f);
+            for (float t = 0; t < 4f && !arrived; t += Time.deltaTime) yield return null;
+
+            // 2) the grab: a thump, the sand drops away
+            AudioOneShot.Play2D(SameShoreAssets.I.Clip("gull_strike"), 0.85f);
+            XRInput.HapticBoth(0.7f, 0.25f);
+            fader.SetColor(Color.black);
+            var cc = body.GetComponent<CharacterController>();
+            if (cc != null) cc.enabled = false;
+            gull.Carry(body, Vector3.up * 0.14f);
+            ambient.Duck(0.5f, 2.5f);
+
+            // 3) carried off over the water: one smooth climb (eased), the view darkens progressively
+            Vector3 from = body.position;
+            Vector3 to = from + seaDir * 4f + side * 0.8f + Vector3.up * 3f;
+            const float seconds = 3.6f;
+            for (float t = 0; t < seconds; t += Time.deltaTime)
+            {
+                float k = t / seconds;
+                float e = k * k * (3f - 2f * k);
+                body.position = Vector3.Lerp(from, to, e) + Vector3.up * Mathf.Sin(t * 9f) * 0.01f * k;   // wing beats
+                EndingLift = Mathf.Max(EndingLift, body.position.y - from.y);
+                fader.SetAlphaDirect(Mathf.SmoothStep(0f, 0.75f, k));
+                if (Mathf.Repeat(t, 0.45f) < Time.deltaTime) XRInput.HapticBoth(0.18f, 0.05f);
+                yield return null;
+            }
+            finalWave.Clear();
+            yield return fader.FadeTo(1f, 0.8f);
+            ambient.Duck(0f, 1.2f);
+            PlayInDark(SameShoreAssets.Pick(SameShoreAssets.I.gullCalls), 0.4f, 0.9f);
+            yield return new WaitForSeconds(1.5f);
+        }
+
         IEnumerator Ending()
         {
             _ending = true;
@@ -544,22 +602,21 @@ namespace SameShore
             turtleStory.Stop();
             objectives.HUD.Suppressed = true;
             ShowHint("", 0.01f);
-            yield return finalWave.Play(turtle.transform, sea, ambient);
             objectives.Stop();
-            // for a moment, it seems she made it
-            yield return new WaitForSeconds(1.6f);
-            finalWave.StopUnderwater();
-            ambient.Duck(0f, 1.2f);
-            yield return new WaitForSeconds(1.3f);
-            // in the darkness: a gull, closer, wings, the strike. Silence.
-            PlayInDark(SameShoreAssets.Pick(SameShoreAssets.I.gullCalls), 0.35f, 0.9f);
-            yield return new WaitForSeconds(1.3f);
-            PlayInDark(SameShoreAssets.I.gullScreech, 0.75f, 1f);
-            yield return new WaitForSeconds(0.5f);
-            PlayInDark(SameShoreAssets.I.Clip("wings_fast"), 0.8f, 1f);
-            yield return new WaitForSeconds(1.5f);
-            PlayInDark(SameShoreAssets.I.Clip("gull_strike"), 0.85f, 1f);
-            XRInput.HapticBoth(0.6f, 0.12f);
+            // the wave comes for her... and so does the gull
+            var gull = gulls != null ? gulls.Gull : null;
+            Coroutine wave = StartCoroutine(finalWave.Play(turtle.transform, sea, ambient, gull == null));
+            if (gull != null) yield return GullTakesHer(gull);
+            else
+            {
+                yield return wave;
+                yield return new WaitForSeconds(1.6f);
+                finalWave.StopUnderwater();
+                ambient.Duck(0f, 1.2f);
+                yield return new WaitForSeconds(1.3f);
+                PlayInDark(SameShoreAssets.I.Clip("gull_strike"), 0.85f, 1f);
+            }
+            EndingCarried = gull != null;
             yield return new WaitForSeconds(3.2f);
             PlayInDark(SameShoreAssets.I.endingPad, 0.45f, 1f);
             ShowEnd("SAME SHORE",

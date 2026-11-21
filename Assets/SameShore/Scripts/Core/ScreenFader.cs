@@ -54,6 +54,13 @@ namespace SameShore
             Apply(a);
         }
 
+        /// <summary>Sets the veil immediately (driven frame by frame by a sequence).</summary>
+        public void SetAlphaDirect(float a)
+        {
+            EnsureSphere();
+            Apply(Mathf.Clamp01(a));
+        }
+
         public Coroutine FadeTo(float target, float seconds) => StartCoroutine(Run(target, seconds));
 
         IEnumerator Run(float target, float seconds)

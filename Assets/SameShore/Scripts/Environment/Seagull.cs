@@ -14,7 +14,7 @@ namespace SameShore
     /// </summary>
     public class Seagull : MonoBehaviour
     {
-        public enum Mode { Grounded, Flying, Circling, Hovering, Diving, Leaving }
+        public enum Mode { Grounded, Flying, Circling, Hovering, Diving, Leaving, Carrying }
 
         [SerializeField] private Transform body;
         [SerializeField] private Transform wingLIn, wingLOut, wingRIn, wingROut;
@@ -81,6 +81,18 @@ namespace SameShore
             _onArrive = onArrive;
             State = Mode.Diving;
             if (voice != null && SameShoreAssets.I.gullDive != null) voice.PlayOneShot(SameShoreAssets.I.gullDive, 1f);
+        }
+
+        Transform _prey;
+        Vector3 _preyOffset, _lastPos;
+
+        /// <summary>The ending: it holds the hatchling in its feet and flies off with it (follows the prey).</summary>
+        public void Carry(Transform prey, Vector3 offset)
+        {
+            _prey = prey;
+            _preyOffset = offset;
+            _lastPos = transform.position;
+            State = Mode.Carrying;
         }
 
         /// <summary>Moves the current flight/dive target without restarting the manoeuvre (homing swoops).</summary>
@@ -155,6 +167,16 @@ namespace SameShore
                     break;
                 case Mode.Leaving:
                     Steer(_target, cruiseSpeed * 1.2f, 2f, dt);
+                    break;
+                case Mode.Carrying:
+                    if (_prey == null) { State = Mode.Leaving; break; }
+                    transform.position = _prey.position + _preyOffset;
+                    _vel = dt > 0 ? (transform.position - _lastPos) / dt : Vector3.zero;
+                    _vel.y = Mathf.Max(_vel.y, 1f);   // heavy, laboured flapping
+                    _lastPos = transform.position;
+                    Vector3 flat = Vector3.ProjectOnPlane(_vel, Vector3.up);
+                    if (flat.sqrMagnitude > 0.01f)
+                        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(flat.normalized, Vector3.up) * Quaternion.Euler(-15f, 0, 0), 1 - Mathf.Exp(-4f * dt));
                     break;
             }
             Animate(dt);

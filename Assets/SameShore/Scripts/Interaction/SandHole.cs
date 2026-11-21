@@ -129,8 +129,10 @@ namespace SameShore
                 float delta = 0f;
                 if (r < radius)
                 {
+                    // smooth cosine bowl: no steep lip (a lip steeper than the hatchling's slope limit made the
+                    // CharacterController slide sideways along the edge instead of going in or past it)
                     float k = r / radius;
-                    delta = -depth * Dug01 * (1f - k * k) * (1f - fill);   // bowl
+                    delta = -depth * Dug01 * 0.5f * (1f + Mathf.Cos(k * Mathf.PI)) * (1f - fill);
                 }
                 else if (r < radius + rimWidth)
                 {

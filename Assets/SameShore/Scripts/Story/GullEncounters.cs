@@ -37,6 +37,7 @@ namespace SameShore
         public int Hits { get; private set; }
         public bool SwoopStruck { get; private set; }
         public event Action<string, float> Message;
+        public Seagull Gull => gull;
 
         GameObject _shadow, _ring;
         Coroutine _run;

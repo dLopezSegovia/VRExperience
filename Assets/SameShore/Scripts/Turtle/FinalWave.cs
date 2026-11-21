@@ -19,7 +19,10 @@ namespace SameShore
         GameObject _wave;
         AudioSource _under;
 
-        public IEnumerator Play(Transform turtleBody, Transform sea, AmbientAudio ambient)
+        public IEnumerator Play(Transform turtleBody, Transform sea, AmbientAudio ambient) => Play(turtleBody, sea, ambient, true);
+
+        /// <summary>goUnder = false: only the wave rushing in (the gull ending takes over from there).</summary>
+        public IEnumerator Play(Transform turtleBody, Transform sea, AmbientAudio ambient, bool goUnder)
         {
             Vector3 p = turtleBody.position;
             Vector3 toLand = sea != null ? Vector3.ProjectOnPlane(p - sea.position, Vector3.up) : Vector3.back;
@@ -47,6 +50,7 @@ namespace SameShore
                 yield return null;
             }
 
+            if (!goUnder) yield break;
             // under the water
             ambient.Duck(0.35f, 0.8f);
             _under = gameObject.AddComponent<AudioSource>();
@@ -64,6 +68,12 @@ namespace SameShore
             yield return fader.FadeTo(1f, 1.6f);
             Destroy(_wave);
             fader.SetColor(Color.black);
+        }
+
+        /// <summary>The wave drains back to the sea and disappears (after the gull ending).</summary>
+        public void Clear()
+        {
+            if (_wave != null) Destroy(_wave);
         }
 
         public void StopUnderwater()
