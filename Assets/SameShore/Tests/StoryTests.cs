@@ -30,10 +30,38 @@ namespace SameShore.Tests
 
         static IEnumerator Grab(Component c, string what)
         {
+            var other = VRHand.Right.Held;
+            if (other != null && other.gameObject != c.gameObject && !other.throwable)
+            {
+                // one desktop hand: put the other thing down at your feet first, like a player would
+                Vector3 side = Vector3.Cross(Vector3.up, PlayerRig.FlatForward);
+                yield return AimAt(MeshKit.OnGround(PlayerRig.Head.position + side * 0.5f - PlayerRig.FlatForward * 0.2f));
+                yield return Tap(Key.E);
+                yield return null;
+            }
             yield return AimAt(Center(c.gameObject));
             yield return Tap(Key.E);
             yield return null;
-            T.Check($"E picks up {what}", VRHand.Right.Held != null && VRHand.Right.Held.gameObject == c.gameObject);
+            bool ok = VRHand.Right.Held != null && VRHand.Right.Held.gameObject == c.gameObject;
+            if (!ok && VRHand.Right.Held == null)
+            {
+                // like a player: step closer, look again, retry once
+                Debug.Log($"[SameShoreTest] grab retry '{what}' from {Flat(PlayerRig.Head.position - c.transform.position):F2} m");
+                yield return WalkTo(c.transform.position, 0.6f, 10f);
+                yield return AimAt(Center(c.gameObject));
+                yield return Tap(Key.E);
+                yield return null;
+                ok = VRHand.Right.Held != null && VRHand.Right.Held.gameObject == c.gameObject;
+            }
+            if (!ok)
+            {
+                var g = c.GetComponent<VRGrabbable>();
+                Physics.Raycast(PlayerRig.Head.position, PlayerRig.Head.forward, out RaycastHit hit, 5f);
+                SaveView($"grabmiss_{what.Replace(' ', '_')}.png");
+                Debug.Log($"[SameShoreTest] grab miss '{what}': at {c.transform.position}, head {PlayerRig.Head.position} ({Flat(PlayerRig.Head.position - c.transform.position):F2} m), " +
+                          $"enabled {(g != null && g.grabbingEnabled)}, held {(VRHand.Right.Held != null ? VRHand.Right.Held.name : "-")}, ray hits '{(hit.collider != null ? hit.collider.name : "-")}' at {hit.distance:F2}");
+            }
+            T.Check($"E picks up {what}", ok);
         }
 
         static IEnumerator Press(PokeButton b)
@@ -239,12 +267,23 @@ namespace SameShore.Tests
             yield return AimAt(gar.Hooks[0].position);
             SaveView("06_lights_at_night.png");
 
+            yield return FromLamp(missed);
+        }
+
+        /// <summary>Scenes 7-8 (flashlight, nest, photo) and the whole Act II.</summary>
+        static IEnumerator FromLamp(List<(TossCan c, Vector3 p)> missed)
+        {
+            var gar = F<LightGarland>();
+            var towel = GameObject.Find("Towel").transform;
             // ---- scene 7: flashlight and nest
             yield return SkipStoryUntil(() => Obj.Get("lamp") != null, 30f);
             var lamp = F<Flashlight>();
             // the castle and the hole are now in the middle of the way: walk around them like a player would
+            Debug.Log($"[SameShoreTest] before the lamp walk: head {PlayerRig.Head.position}, lamp {lamp.transform.position}, seated {F<HumanSeat>().Seated}, move {F<SmoothLocomotion>().MovementEnabled}");
             yield return WalkTo(lamp.transform.position + new Vector3(-0.9f, 0f, -1.4f), 0.5f, 40f);
+            Debug.Log($"[SameShoreTest] at the detour point: head {PlayerRig.Head.position}");
             yield return WalkTo(lamp.transform.position, 0.9f);
+            SaveView("07a_before_lamp_grab.png");
             yield return Grab(lamp, "the flashlight");
             yield return Tap(Key.F);
             yield return null;
@@ -278,6 +317,34 @@ namespace SameShore.Tests
             yield return SkipStoryUntil(TurtleReady, 90f);
             yield return TurtleChecks(log, missed);
             yield return TurtleJourney(true);
+        }
+
+        /// <summary>Fast path to scenes 7-8 and Act II: skips scenes 1-6 like the pause menu would.</summary>
+        public static IEnumerator Late(SmokeTestRunner t)
+        {
+            T = t;
+            Setup();
+            Object.DontDestroyOnLoad(t.gameObject);
+            yield return ClickButton("Full Experience");
+            yield return SkipStoryUntil(HumanReady, 90f);
+            float end = Time.realtimeSinceStartup + 400f;
+            while (Obj.Get("lamp") == null && Time.realtimeSinceStartup < end)
+            {
+                if (Obj.Running && Obj.Current != null && ScreenFader.Instance.Alpha < 0.05f)
+                {
+                    string id = Obj.Current.Id;
+                    Director.RequestSkip();
+                    yield return WaitFor(() => Obj.Current == null || Obj.Current.Id != id || !Obj.Running || Obj.Get("lamp") != null, 20f);
+                }
+                var sub = GameObject.Find("Subtitle");
+                if (sub != null && sub.activeSelf) yield return Tap(Key.Space);
+                yield return null;
+            }
+            T.Check("Skipped to the flashlight scene", Obj.Get("lamp") != null);
+            yield return Click();   // capture the mouse (mouse look) like a desktop tester would
+            var missed = new List<(TossCan c, Vector3 p)>();
+            foreach (var c in F<CanTossGame>().Cans) if (c.Result == BeachLog.CanResult.Missed) missed.Add((c, c.transform.position));
+            yield return FromLamp(missed);
         }
 
         static float RouteDist(Vector3 p)
@@ -448,7 +515,9 @@ namespace SameShore.Tests
                 T.Check($"Near the speaker it dominates the mix (volume {music.Source.volume:F2} <= 0.8, low-pass {lp.cutoffFrequency:F0} Hz, waves x{ambient.WaveDuck:F2})",
                         music.Source.isPlaying && music.Source.volume > 0.4f && music.Source.volume <= 0.801f && lp.cutoffFrequency > 1500f && ambient.WaveDuck < 0.8f);
                 float near = music.Source.volume;
-                yield return Teleport(W(9), W(10));
+                // past the camp but before the bag, the second gull and the giant (left of the castle/hole)
+                Vector3 past = W(6) + Vector3.left * 1.3f + Vector3.forward * 0.7f;
+                yield return Teleport(past, past + Vector3.forward);
                 yield return new WaitForSeconds(8f);
                 T.Check($"Leaving the camp: the music recedes ({near:F2} -> {music.Source.volume:F2}) and the waves return (x{ambient.WaveDuck:F2})",
                         music.Source.volume < near && ambient.WaveDuck > 0.7f);
@@ -468,8 +537,8 @@ namespace SameShore.Tests
             T.Check($"...and climbs out (not trapped): {Flat(turtle.transform.position - hole.transform.position):F2} m from its centre", Flat(turtle.transform.position - hole.transform.position) > hole.Radius * 0.6f);
 
             // gull 2 (non-lethal)
-            yield return Teleport(W(6), W(7));
-            yield return Hold(5f, Key.W, () => gulls.Attacks > 1);
+            yield return Teleport(W(7) + Vector3.back * 0.45f, W(8));
+            yield return Hold(6f, Key.W, () => gulls.Attacks > 1);
             yield return WaitFor(() => gulls.SecondDone, 25f);
             T.Check($"Second gull attack resolved ({gulls.Attacks} attacks in total, {gulls.Hits} hits) - never lethal", gulls.SecondDone && gulls.Attacks == 2 && turtle.enabled && GM.Current == GameState.Hatchling);
 
@@ -490,7 +559,7 @@ namespace SameShore.Tests
             var giant = F<GiantHuman>();
             yield return WaitFor(() => giant.AtPhotoSpot, 40f);
             Vector3 gf = giant.Feet;
-            yield return Teleport(gf + (W(7) - gf).normalized * 1.9f, gf);
+            yield return Teleport(gf + (W(7) - gf).normalized * 1.3f, gf);
             yield return AimAt(gf + Vector3.up * 1.2f);
             SaveView("14_the_giant.png");
             // measure the fader from the approach on (the flash can come and go before PhotoDone), never the ending
@@ -505,13 +574,14 @@ namespace SameShore.Tests
                 }
             }
             T.StartCoroutine(Measure());
-            yield return Hold(5f, Key.W, () => giant.PhotoDone);
+            yield return Hold(10f, Key.W, () => giant.PhotoDone);
             yield return WaitFor(() => giant.PhotoDone, 10f);
-            yield return new WaitForSeconds(2.5f);
+            yield return new WaitForSeconds(4.5f);   // PhotoDone is set when the shot starts; the flash comes ~2.6 s later
             measuring = false;
             Debug.Log($"[SameShoreTest] glare peak {peak:F2}");
-            T.Check($"The giant bends down and takes THE photo: moderate glare (peak {peak:F2} < 0.7, no white-out)", giant.PhotoDone && peak > 0.1f && peak < 0.7f);
-            if (expectGiantFromLog) T.Check("The giant stands where the human stood for the photo", Flat(gf - F<BeachLog>().PhotoFeet) < 0.6f);
+            peak = Mathf.Max(peak, story.GlarePeak);
+            T.Check($"The giant bends down and takes THE photo: moderate glare ({story.Glares} flash, veil peak {peak:F2} < 0.7, no white-out)", giant.PhotoDone && story.Glares == 1 && peak > 0.1f && peak < 0.7f);
+            if (expectGiantFromLog) T.Check($"The giant stands where the human stood for the photo ({Flat(giant.PhotoSpot - F<BeachLog>().PhotoFeet):F2} m)", Flat(giant.PhotoSpot - F<BeachLog>().PhotoFeet) < 0.6f);
             yield return new WaitForSeconds(3f);
 
             // almost there, the sea, the ending

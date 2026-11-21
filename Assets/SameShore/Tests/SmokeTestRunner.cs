@@ -33,6 +33,7 @@ namespace SameShore.Tests
                 case "turtle": yield return StoryTests.TurtleOnly(this); break;
                 case "human": yield return StoryTests.HumanOnly(this); break;
                 case "xr": yield return StoryTests.Xr(this); break;
+                case "late": yield return StoryTests.Late(this); break;
                 default: yield return StoryTests.Full(this); break;
             }
         }

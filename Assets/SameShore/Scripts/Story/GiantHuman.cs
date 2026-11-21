@@ -19,6 +19,8 @@ namespace SameShore
         public bool Playing { get; private set; }
         public bool AtPhotoSpot { get; private set; }
         public bool PhotoDone { get; private set; }
+        /// <summary>Where the replayed human stands for the photo (= where the player stood in Act I).</summary>
+        public Vector3 PhotoSpot => _photoFeet;
         public Vector3 Feet => puppet.Feet;
         public float TimeScale { get; set; } = 1f;
         public event System.Action Flashed;

@@ -178,9 +178,18 @@ namespace SameShore.Tests
 
         public static Vector3 Center(GameObject go)
         {
+            // aim at what the ray must hit: the solid colliders (renderer bounds would include e.g. the beam cone)
+            bool any = false;
+            Bounds b = default;
+            foreach (var c in go.GetComponentsInChildren<Collider>())
+            {
+                if (!c.enabled || c.isTrigger) continue;
+                if (!any) { b = c.bounds; any = true; } else b.Encapsulate(c.bounds);
+            }
+            if (any) return b.center;
             var rs = go.GetComponentsInChildren<Renderer>();
-            Bounds b = rs[0].bounds;
-            foreach (var r in rs) if (!(r is ParticleSystemRenderer)) b.Encapsulate(r.bounds);
+            b = rs[0].bounds;
+            foreach (var r in rs) if (r.enabled && !(r is ParticleSystemRenderer)) b.Encapsulate(r.bounds);
             return b.center;
         }
 

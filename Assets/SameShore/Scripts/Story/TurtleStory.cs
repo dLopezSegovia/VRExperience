@@ -46,6 +46,9 @@ namespace SameShore
         public float SecondsOffCourse { get; private set; }
         public bool AlmostThere { get; private set; }
         public int CansOnRoute { get; private set; }
+        /// <summary>How many times the giant's flash hit the hatchling, and the strongest screen veil it caused (comfort check).</summary>
+        public int Glares { get; private set; }
+        public float GlarePeak { get; private set; }
 
         public event Action<string, float> Message;
 
@@ -94,6 +97,8 @@ namespace SameShore
             Running = true;
             LeftNest = FellInHole = PassedHole = PassedCans = BitBag = PassedBag = SawGiant = PassedGiant = false;
             PulledByLights = AlmostThere = false;
+            Glares = 0;
+            GlarePeak = 0f;
             SecondsOffCourse = 0;
             _jellyPrompt = _gull1 = _gull2 = _photoStarted = _lightMsg = false;
             turtle.ExternalSpeedMultiplier = 1f;
@@ -324,8 +329,13 @@ namespace SameShore
             turtle.Stun(1.2f);
             turtle.ExternalSpeedMultiplier = 0.6f;
             _slowUntil = Time.time + 2.5f;
+            Glares++;
             BeachLog.I?.Record("the giant's phone flash dazzled the hatchling", turtle.transform.position);
-            yield return new WaitForSeconds(2.6f);
+            for (float t = 0; t < 2.6f; t += Time.deltaTime)
+            {
+                if (ScreenFader.Instance != null) GlarePeak = Mathf.Max(GlarePeak, ScreenFader.Instance.Alpha);
+                yield return null;
+            }
             Say("It wasn't a monster.\nIt was the human... it was you, taking the perfect photo.", 7f);
         }
 

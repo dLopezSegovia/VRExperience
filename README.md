@@ -193,16 +193,34 @@ Quest 3 físicas:** todo se ha comprobado con Unity en modo batch.
 - Pruebas en Play Mode con entrada simulada (`Tools/Unity/run_batch.ps1 -Method SameShore.EditorTools.SameShoreSmokeTest.Run -NoQuit -Mode full|turtle|human|xr`),
   informe en `Logs/SameShoreSmokeTest.txt` y capturas en `Logs/Views/`.
 
-### Resultado de la última validación (21-11-2026)
+### Resultado de la última validación (21-11-2026, rediseño de ruta)
 
-- Constructor + validador: **OK** (sin scripts perdidos ni referencias nulas).
-- `-Mode turtle` (Acto II completo con playa por defecto, hasta el final y vuelta al menú): **19/22** en la
-  primera pasada. Fallaron 3 comprobaciones y se corrigieron después (espera de las latas, la primera gaviota
-  que no saltaba, la foto que se disparaba junto a la bolsa). **Falta volver a ejecutarla.**
-- `-Mode full`: superan las escenas 1 a 3 hasta llenar el cubo (25 comprobaciones). La última ejecución se
-  detuvo por **falta de memoria del sistema** a mitad del castillo, así que **las escenas 3 a 8 con entrada
-  simulada y el recorrido completo están pendientes de volver a ejecutar**.
-- `-Mode human` y `-Mode xr`: escritos, **sin ejecutar todavía**.
+Todo con Unity 6000.6.4f1 en modo batch y entrada simulada (escritorio). **No se ha probado en unas Quest 3 físicas.**
+
+- Constructor + validador: **OK** (sin scripts perdidos ni referencias nulas). Ojos de la tortuga a 7,5 cm del
+  suelo en el modelo; dunas esculpidas en `Generated/Terrain/SameShoreTerrain_0.asset` (rejilla de 0,1 m).
+- Modos de prueba: `full` (todo con entrada simulada), `late` (salta las escenas 1-6 con el menú de pausa y
+  juega 7-8 + Acto II completo, mucho más rápido), `turtle`, `human`, `xr`.
+- `-Mode late`: **46/46**. Linterna → nido → paseo nocturno grabado → foto con flash → Acto II completo.
+- `-Mode turtle`: **34/34**. Entre otras cosas comprueba lo siguiente:
+  - **cámara en los ojos:** 7,5-8 cm sobre la arena, 0,0 cm del punto de ojos, sin subir ni hundirse al reptar;
+    cabeza propia oculta y aletas visibles;
+  - **límites naturales:** la tortuga no escapa por los lados del pasillo;
+  - **1.er ataque real de gaviota;**
+  - **daño de luces progresivo** y con tope del 50 %, que desaparece al alejarse;
+  - **música:** arranca con el trigger, domina junto al altavoz (0,8, paso bajo 3,4 kHz, olas ×0,55) y se aleja después;
+  - hoyo (cae y sale), 2.º ataque, bolsa/medusa, flash del gigante (velo 0,55 < 0,7) y final;
+  - llega al mar.
+- `-Mode human` (saltos desde el menú de pausa): **6/6**. `-Mode xr` (con `-Extra -sameshore-xr`): **7/7**.
+- `-Mode full`: **104/105**. Superan, entre otras:
+  - las latas como reto: a 4,6 m, boca de 27 cm, sin multiplicador; las 3 falladas quedan en el camino;
+  - el cubo, en dos ciclos llenar → volcar → llenar: la arena queda dentro (1,4-20,2 cm de alto, radio 8,7 cm);
+  - castillo y hoyo en el camino, y la bolsa en el camino (0,29 m);
+  - guirnalda con 30 bombillas, 30 halos y 4 manchas de luz;
+  - linterna, foto y todo el Acto II.
+
+  Falla 1 comprobación: en el segundo ciclo, el primer intento de coger el cubo de la prueba se hace desde
+  2,5 m, al otro lado del castillo, y la torre aparece un ciclo después. El castillo termina con sus 2 torres.
 
 ## Pendiente / requiere prueba real en Quest 3
 

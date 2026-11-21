@@ -22,7 +22,7 @@ namespace SameShore
         [SerializeField] private float maxVolume = 0.8f;
         [SerializeField] private float nearDistance = 1.5f;      // world metres from the speaker (~30 m for the hatchling)
         [SerializeField] private float farDistance = 12f;
-        [SerializeField] private float leaveDistance = 4f;        // past the camp, towards the sea, the music recedes
+        [SerializeField] private float leaveDistance = 3.2f;      // past the camp, towards the sea, the music recedes
         [SerializeField] private float waveDuck = 0.55f;
 
         AudioLowPassFilter _lp;
