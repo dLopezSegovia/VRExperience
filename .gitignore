@@ -70,3 +70,9 @@ crashlytics-build.properties
 # Temporary auto-generated Android Assets
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# Generados localmente (Meta XR en tiempo de ejecucion / Visual Studio)
+RuntimeActionBindings.json
+/[Aa]ssets/[Ss]treamingAssets/RuntimeActionBindings.json
+/[Aa]ssets/[Ss]treamingAssets/RuntimeActionBindings.json.meta
+*.slnx
